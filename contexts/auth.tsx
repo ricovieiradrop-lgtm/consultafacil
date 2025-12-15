@@ -170,25 +170,39 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     if (error) {
       console.error('❌ Auth: Error verifying OTP', error);
+      console.error('❌ Auth: Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
 
     if (!data.session || !data.user) {
+      console.error('❌ Auth: No session or user in response');
       throw new Error('Falha ao criar sessão');
     }
 
     console.log('✅ Auth: OTP verified, user authenticated');
+    console.log('✅ Auth: User ID:', data.user.id);
+    console.log('✅ Auth: User phone:', data.user.phone);
+    console.log('✅ Auth: User metadata:', JSON.stringify(data.user.user_metadata, null, 2));
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     try {
-      console.log('🔍 Auth: Checking if profile exists');
+      console.log('🔍 Auth: Checking if profile exists for user', data.user.id);
       const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
         .single();
 
+      console.log('🔍 Auth: Profile query result:', existingProfile);
+      console.log('🔍 Auth: Profile query error:', profileError);
+
       if (existingProfile && !profileError) {
-        console.log('✅ Auth: Found existing profile', existingProfile.role, existingProfile.full_name);
+        console.log('✅ Auth: Found existing profile');
+        console.log('✅ Auth: Profile role:', existingProfile.role);
+        console.log('✅ Auth: Profile name:', existingProfile.full_name);
+        console.log('✅ Auth: Profile phone:', existingProfile.phone);
+        console.log('✅ Auth: Profile CPF:', existingProfile.cpf);
         
         setAuthState({
           session: data.session,
@@ -201,9 +215,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return { session: data.session, user: data.user };
       }
     } catch (error) {
-      console.log('⚠️ Auth: No profile found, needs onboarding', error);
+      console.log('⚠️ Auth: Error checking profile:', error);
+      console.log('⚠️ Auth: Error details:', JSON.stringify(error, null, 2));
     }
 
+    console.log('⚠️ Auth: User needs to complete profile');
     setAuthState({
       session: data.session,
       user: data.user,
@@ -212,7 +228,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       isOnboarding: true,
     });
 
-    console.log('⚠️ Auth: User needs to complete profile');
     return { session: data.session, user: data.user };
   };
 
@@ -221,10 +236,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     cpf: string;
   }) => {
     if (!authState.user) {
+      console.error('❌ Auth: No user in state');
       throw new Error('Usuário não autenticado');
     }
 
-    console.log('👤 Auth: Completing profile for', authState.user.id);
+    console.log('👤 Auth: Completing profile for user', authState.user.id);
+    console.log('👤 Auth: User phone:', authState.user.phone);
+    console.log('👤 Auth: Profile data:', profileData);
 
     const profileToInsert = {
       id: authState.user.id,
@@ -234,6 +252,53 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       role: 'patient' as const,
     };
 
+    console.log('👤 Auth: Inserting profile:', JSON.stringify(profileToInsert, null, 2));
+
+    try {
+      console.log('👤 Auth: Checking if profile already exists...');
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authState.user.id)
+        .single();
+
+      if (existingProfile) {
+        console.log('⚠️ Auth: Profile already exists!', existingProfile);
+        console.log('⚠️ Auth: Updating existing profile instead...');
+        
+        const { data: updatedProfile, error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: profileData.full_name,
+            cpf: profileData.cpf,
+          })
+          .eq('id', authState.user.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('❌ Auth: Error updating profile', updateError);
+          console.error('❌ Auth: Error details:', JSON.stringify(updateError, null, 2));
+          throw updateError;
+        }
+
+        console.log('✅ Auth: Profile updated successfully');
+        setAuthState(prev => ({
+          ...prev,
+          profile: updatedProfile,
+          isOnboarding: false,
+        }));
+
+        return updatedProfile;
+      }
+    } catch (error: any) {
+      if (error?.code !== 'PGRST116') {
+        console.error('❌ Auth: Error checking existing profile', error);
+      }
+    }
+
+    console.log('👤 Auth: No existing profile, creating new one...');
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .insert(profileToInsert)
@@ -242,10 +307,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     if (error) {
       console.error('❌ Auth: Error creating profile', error);
+      console.error('❌ Auth: Error code:', error.code);
+      console.error('❌ Auth: Error message:', error.message);
+      console.error('❌ Auth: Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
 
     console.log('✅ Auth: Profile created successfully');
+    console.log('✅ Auth: Created profile:', JSON.stringify(profile, null, 2));
+    
     setAuthState(prev => ({
       ...prev,
       profile,
