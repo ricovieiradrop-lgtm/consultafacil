@@ -30,7 +30,7 @@ import { doctors } from '@/mocks/doctors';
 
 const { width } = Dimensions.get('window');
 
-type PeriodType = 'day' | 'month' | 'custom';
+type PeriodType = 'day' | 'month' | 'year' | 'custom';
 type TabType = 'overview' | 'doctors' | 'patients' | 'appointments';
 
 const MOCK_STATS = {
@@ -240,6 +240,25 @@ export default function AdminDashboard() {
         >
           {activeTab === 'overview' && (
             <>
+              <View style={styles.filtersContainer}>
+                <TouchableOpacity
+                  style={styles.filterButton}
+                  onPress={() => setShowPeriodModal(true)}
+                >
+                  <Filter size={16} color={Colors.light.text} />
+                  <Text style={styles.filterButtonText}>
+                    {periodFilter === 'day'
+                      ? 'Hoje'
+                      : periodFilter === 'month'
+                      ? 'Este Mês'
+                      : periodFilter === 'year'
+                      ? 'Este Ano'
+                      : 'Período Personalizado'}
+                  </Text>
+                  <ChevronDown size={16} color={Colors.light.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.statsGrid}>
                 <View style={[styles.statCard, styles.statCardPrimary]}>
                   <View style={styles.statIconContainer}>
@@ -430,6 +449,8 @@ export default function AdminDashboard() {
                       ? 'Hoje'
                       : periodFilter === 'month'
                       ? 'Este Mês'
+                      : periodFilter === 'year'
+                      ? 'Este Ano'
                       : 'Período Personalizado'}
                   </Text>
                   <ChevronDown size={16} color={Colors.light.textSecondary} />
@@ -585,6 +606,15 @@ export default function AdminDashboard() {
                 }}
               >
                 <Text style={styles.modalOptionText}>Este Mês</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalOption}
+                onPress={() => {
+                  setPeriodFilter('year');
+                  setShowPeriodModal(false);
+                }}
+              >
+                <Text style={styles.modalOptionText}>Este Ano</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalOption}
