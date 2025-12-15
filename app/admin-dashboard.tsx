@@ -229,7 +229,7 @@ export default function AdminDashboard() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => router.push('/')}
           >
             <ArrowLeft size={24} color={Colors.light.text} />
           </TouchableOpacity>
@@ -246,7 +246,7 @@ export default function AdminDashboard() {
                 style={styles.testModeButton}
                 onPress={() => {
                   updateUser({ type: 'patient' });
-                  router.back();
+                  router.push('/');
                 }}
               >
                 <Text style={styles.testModeButtonText}>Modo Paciente</Text>

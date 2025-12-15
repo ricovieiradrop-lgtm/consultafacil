@@ -738,7 +738,7 @@ export default function DoctorDashboardScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
           <X size={24} color={Colors.light.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -748,7 +748,7 @@ export default function DoctorDashboardScreen() {
               style={styles.testModeButton}
               onPress={() => {
                 updateUser({ type: 'patient' });
-                router.back();
+                router.push('/');
               }}
             >
               <Text style={styles.testModeButtonText}>Modo Paciente</Text>
