@@ -8,6 +8,7 @@ import {
   Modal,
   Dimensions,
   Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -27,8 +28,8 @@ import {
   X,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { doctors } from '@/mocks/doctors';
 import { useUser } from '@/contexts/user';
+import { useDoctors, useSpecialties, useCreateOrUpdateDoctor } from '@/lib/supabase-hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -42,7 +43,6 @@ const MOCK_STATS = {
   totalRevenue: 87450,
   monthlyRevenue: 24800,
   growthRate: 18.5,
-  totalDoctors: doctors.length,
   totalPatients: 342,
 };
 
@@ -107,6 +107,26 @@ export default function AdminDashboard() {
   const [showPeriodModal, setShowPeriodModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
   const [showDoctorModal, setShowDoctorModal] = useState(false);
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  
+  const { data: doctorsData } = useDoctors();
+  const { data: specialtiesData } = useSpecialties();
+  const createDoctorMutation = useCreateOrUpdateDoctor();
+  
+  const doctors = doctorsData || [];
+  const specialties = specialtiesData || [];
+  
+  const [doctorForm, setDoctorForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    crm: '',
+    specialtyId: '',
+    bio: '',
+    location: '',
+    city: '',
+    state: '',
+  });
 
   const filteredAppointments = selectedDoctor
     ? MOCK_APPOINTMENTS.filter((apt) =>
@@ -121,11 +141,45 @@ export default function AdminDashboard() {
     .reduce((sum, apt) => sum + apt.price, 0);
 
   const handleAddDoctor = () => {
-    Alert.alert(
-      'Adicionar Médico',
-      'Cadastrar novo médico no sistema.\n\n• Nome completo\n• CRM\n• Especialidade\n• Contato\n• Documentação',
-      [{ text: 'OK' }]
-    );
+    setDoctorForm({
+      name: '',
+      email: '',
+      phone: '',
+      crm: '',
+      specialtyId: '',
+      bio: '',
+      location: '',
+      city: '',
+      state: '',
+    });
+    setShowAddDoctorModal(true);
+  };
+  
+  const handleSaveDoctor = async () => {
+    if (!doctorForm.name || !doctorForm.email || !doctorForm.crm || !doctorForm.specialtyId) {
+      Alert.alert('Erro', 'Preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    try {
+      await createDoctorMutation.mutateAsync({
+        name: doctorForm.name,
+        email: doctorForm.email,
+        phone: doctorForm.phone,
+        crm: doctorForm.crm,
+        specialtyId: doctorForm.specialtyId,
+        bio: doctorForm.bio,
+        location: doctorForm.location,
+        city: doctorForm.city,
+        state: doctorForm.state,
+      });
+      
+      setShowAddDoctorModal(false);
+      Alert.alert('Sucesso', 'Médico adicionado com sucesso!');
+    } catch (error) {
+      console.error('Error adding doctor:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar o médico. Tente novamente.');
+    }
   };
 
   const handleAddPatient = () => {
@@ -351,7 +405,7 @@ export default function AdminDashboard() {
                   <View style={styles.statIconContainer}>
                     <Stethoscope size={24} color={Colors.light.primary} />
                   </View>
-                  <Text style={styles.statValue}>{MOCK_STATS.totalDoctors}</Text>
+                  <Text style={styles.statValue}>{doctors.length}</Text>
                   <Text style={styles.statLabel}>Médicos Ativos</Text>
                 </View>
 
@@ -743,6 +797,163 @@ export default function AdminDashboard() {
               </ScrollView>
             </View>
           </TouchableOpacity>
+        </Modal>
+
+        <Modal
+          visible={showAddDoctorModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowAddDoctorModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, styles.formModal]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Adicionar Médico</Text>
+                <TouchableOpacity
+                  onPress={() => setShowAddDoctorModal(false)}
+                  style={styles.closeButton}
+                >
+                  <X size={24} color={Colors.light.text} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Nome Completo *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Dr. João Silva"
+                    value={doctorForm.name}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, name: text })}
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Email *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="joao@example.com"
+                    value={doctorForm.email}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, email: text })}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Telefone</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="(11) 99999-9999"
+                    value={doctorForm.phone}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, phone: text })}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>CRM *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="CRM/SP 123456"
+                    value={doctorForm.crm}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, crm: text })}
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Especialidade *</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.specialtyChips}>
+                      {specialties.map((specialty) => (
+                        <TouchableOpacity
+                          key={specialty.id}
+                          style={[
+                            styles.specialtyChip,
+                            doctorForm.specialtyId === specialty.id && styles.specialtyChipActive,
+                          ]}
+                          onPress={() => setDoctorForm({ ...doctorForm, specialtyId: specialty.id })}
+                        >
+                          <Text
+                            style={[
+                              styles.specialtyChipText,
+                              doctorForm.specialtyId === specialty.id && styles.specialtyChipTextActive,
+                            ]}
+                          >
+                            {specialty.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Bio</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formTextArea]}
+                    placeholder="Breve descrição profissional"
+                    value={doctorForm.bio}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, bio: text })}
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Endereço</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Rua, número - Bairro"
+                    value={doctorForm.location}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, location: text })}
+                  />
+                </View>
+
+                <View style={styles.formRow}>
+                  <View style={[styles.formGroup, styles.formGroupHalf]}>
+                    <Text style={styles.formLabel}>Cidade</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="São Paulo"
+                      value={doctorForm.city}
+                      onChangeText={(text) => setDoctorForm({ ...doctorForm, city: text })}
+                    />
+                  </View>
+
+                  <View style={[styles.formGroup, styles.formGroupHalf]}>
+                    <Text style={styles.formLabel}>Estado</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      placeholder="SP"
+                      value={doctorForm.state}
+                      onChangeText={(text) => setDoctorForm({ ...doctorForm, state: text })}
+                      maxLength={2}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.formActions}>
+                <TouchableOpacity
+                  style={[styles.formButton, styles.formButtonSecondary]}
+                  onPress={() => setShowAddDoctorModal(false)}
+                >
+                  <Text style={styles.formButtonTextSecondary}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.formButton, styles.formButtonPrimary]}
+                  onPress={handleSaveDoctor}
+                  disabled={createDoctorMutation.isPending}
+                >
+                  <Text style={styles.formButtonText}>
+                    {createDoctorMutation.isPending ? 'Salvando...' : 'Salvar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </Modal>
       </SafeAreaView>
     </>
@@ -1313,5 +1524,110 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.textSecondary,
     marginTop: 2,
+  },
+  formModal: {
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formScroll: {
+    maxHeight: 500,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
+  formInput: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: Colors.light.text,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  formTextArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  formGroupHalf: {
+    flex: 1,
+  },
+  specialtyChips: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  specialtyChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  specialtyChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  specialtyChipText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+  },
+  specialtyChipTextActive: {
+    color: '#FFFFFF',
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  formButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  formButtonPrimary: {
+    backgroundColor: Colors.light.primary,
+  },
+  formButtonSecondary: {
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  formButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  formButtonTextSecondary: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
   },
 });
