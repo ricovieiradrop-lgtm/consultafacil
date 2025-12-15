@@ -21,6 +21,8 @@ import {
   Calendar,
   X,
   Check,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
@@ -28,7 +30,7 @@ import { useRouter } from 'expo-router';
 import { Service } from '@/types';
 import * as ImagePicker from 'expo-image-picker';
 
-type TabType = 'profile' | 'procedures' | 'schedule';
+type TabType = 'profile' | 'procedures' | 'schedule' | 'appointments';
 
 type DaySchedule = {
   enabled: boolean;
@@ -66,6 +68,7 @@ export default function DoctorDashboardScreen() {
   const { user, updateUser } = useUser();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('profile');
+  const [appointmentsFilter, setAppointmentsFilter] = useState<'upcoming' | 'completed'>('upcoming');
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
@@ -103,6 +106,93 @@ export default function DoctorDashboardScreen() {
     saturday: { enabled: false, slots: [] },
     sunday: { enabled: false, slots: [] },
   });
+
+  const mockAppointments = [
+    {
+      id: '1',
+      patientName: 'João Silva',
+      service: 'Consulta Geral',
+      date: '2025-12-20',
+      time: '10:00',
+      status: 'upcoming' as const,
+      price: 200,
+    },
+    {
+      id: '2',
+      patientName: 'Maria Santos',
+      service: 'Consulta de Retorno',
+      date: '2025-12-22',
+      time: '14:30',
+      status: 'upcoming' as const,
+      price: 150,
+    },
+    {
+      id: '3',
+      patientName: 'Pedro Oliveira',
+      service: 'Consulta Geral',
+      date: '2025-12-10',
+      time: '09:00',
+      status: 'completed' as const,
+      price: 200,
+    },
+    {
+      id: '4',
+      patientName: 'Ana Costa',
+      service: 'Consulta Geral',
+      date: '2025-12-12',
+      time: '11:00',
+      status: 'completed' as const,
+      price: 200,
+    },
+    {
+      id: '5',
+      patientName: 'Carlos Lima',
+      service: 'Consulta de Retorno',
+      date: '2025-12-14',
+      time: '15:30',
+      status: 'completed' as const,
+      price: 150,
+    },
+  ];
+
+  const filteredAppointments = mockAppointments.filter(
+    (apt) => apt.status === appointmentsFilter
+  );
+
+  const handleCancelAppointment = (id: string) => {
+    Alert.alert(
+      'Cancelar Consulta',
+      'Tem certeza que deseja cancelar esta consulta?',
+      [
+        { text: 'Não', style: 'cancel' },
+        {
+          text: 'Sim, Cancelar',
+          style: 'destructive',
+          onPress: () => {
+            console.log('Cancelled appointment:', id);
+            Alert.alert('Sucesso', 'Consulta cancelada');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCompleteAppointment = (id: string) => {
+    Alert.alert(
+      'Finalizar Consulta',
+      'Marcar esta consulta como concluída?',
+      [
+        { text: 'Não', style: 'cancel' },
+        {
+          text: 'Sim, Finalizar',
+          onPress: () => {
+            console.log('Completed appointment:', id);
+            Alert.alert('Sucesso', 'Consulta finalizada');
+          },
+        },
+      ]
+    );
+  };
 
   const handleSaveProfile = () => {
     console.log('Saving profile:', profileForm);
@@ -431,6 +521,159 @@ export default function DoctorDashboardScreen() {
     </View>
   );
 
+  const renderAppointmentsTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.appointmentsHeader}>
+        <TouchableOpacity
+          style={[
+            styles.filterTab,
+            appointmentsFilter === 'upcoming' && styles.filterTabActive,
+          ]}
+          onPress={() => setAppointmentsFilter('upcoming')}
+        >
+          <Text
+            style={[
+              styles.filterTabText,
+              appointmentsFilter === 'upcoming' && styles.filterTabTextActive,
+            ]}
+          >
+            Próximas Consultas
+          </Text>
+          <View
+            style={[
+              styles.filterBadge,
+              appointmentsFilter === 'upcoming' && styles.filterBadgeActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.filterBadgeText,
+                appointmentsFilter === 'upcoming' && styles.filterBadgeTextActive,
+              ]}
+            >
+              {mockAppointments.filter((a) => a.status === 'upcoming').length}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.filterTab,
+            appointmentsFilter === 'completed' && styles.filterTabActive,
+          ]}
+          onPress={() => setAppointmentsFilter('completed')}
+        >
+          <Text
+            style={[
+              styles.filterTabText,
+              appointmentsFilter === 'completed' && styles.filterTabTextActive,
+            ]}
+          >
+            Concluídas
+          </Text>
+          <View
+            style={[
+              styles.filterBadge,
+              appointmentsFilter === 'completed' && styles.filterBadgeActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.filterBadgeText,
+                appointmentsFilter === 'completed' && styles.filterBadgeTextActive,
+              ]}
+            >
+              {mockAppointments.filter((a) => a.status === 'completed').length}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {filteredAppointments.length === 0 ? (
+        <View style={styles.emptyAppointments}>
+          <AlertCircle size={48} color={Colors.light.border} />
+          <Text style={styles.emptyAppointmentsTitle}>
+            {appointmentsFilter === 'upcoming'
+              ? 'Nenhuma consulta agendada'
+              : 'Nenhuma consulta concluída'}
+          </Text>
+          <Text style={styles.emptyAppointmentsText}>
+            {appointmentsFilter === 'upcoming'
+              ? 'Quando pacientes agendarem consultas, elas aparecerão aqui'
+              : 'Suas consultas finalizadas aparecerão aqui'}
+          </Text>
+        </View>
+      ) : (
+        filteredAppointments.map((appointment) => (
+          <View key={appointment.id} style={styles.appointmentCard}>
+            <View style={styles.appointmentCardHeader}>
+              <View>
+                <Text style={styles.appointmentPatient}>
+                  {appointment.patientName}
+                </Text>
+                <Text style={styles.appointmentService}>
+                  {appointment.service}
+                </Text>
+              </View>
+              <Text style={styles.appointmentPrice}>
+                R$ {appointment.price.toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.appointmentDetails}>
+              <View style={styles.appointmentDetailItem}>
+                <Calendar size={16} color={Colors.light.textSecondary} />
+                <Text style={styles.appointmentDetailText}>
+                  {new Date(appointment.date).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </Text>
+              </View>
+              <View style={styles.appointmentDetailItem}>
+                <Clock size={16} color={Colors.light.textSecondary} />
+                <Text style={styles.appointmentDetailText}>
+                  {appointment.time}
+                </Text>
+              </View>
+            </View>
+
+            {appointment.status === 'upcoming' && (
+              <View style={styles.appointmentActions}>
+                <TouchableOpacity
+                  style={[styles.appointmentButton, styles.appointmentButtonComplete]}
+                  onPress={() => handleCompleteAppointment(appointment.id)}
+                >
+                  <CheckCircle2 size={18} color="#10B981" />
+                  <Text style={styles.appointmentButtonCompleteText}>
+                    Finalizar
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.appointmentButton, styles.appointmentButtonCancel]}
+                  onPress={() => handleCancelAppointment(appointment.id)}
+                >
+                  <X size={18} color={Colors.light.error} />
+                  <Text style={styles.appointmentButtonCancelText}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {appointment.status === 'completed' && (
+              <View style={styles.completedBadge}>
+                <CheckCircle2 size={16} color="#10B981" />
+                <Text style={styles.completedBadgeText}>Concluída</Text>
+              </View>
+            )}
+          </View>
+        ))
+      )}
+    </View>
+  );
+
   const renderScheduleTab = () => (
     <View style={styles.tabContent}>
       <Text style={styles.sectionTitle}>Configurar Horários Disponíveis</Text>
@@ -555,6 +798,24 @@ export default function DoctorDashboardScreen() {
             Agenda
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'appointments' && styles.tabActive]}
+          onPress={() => setActiveTab('appointments')}
+        >
+          <CheckCircle2
+            size={20}
+            color={activeTab === 'appointments' ? Colors.light.primary : Colors.light.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === 'appointments' && styles.tabTextActive,
+            ]}
+          >
+            Consultas
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -565,6 +826,7 @@ export default function DoctorDashboardScreen() {
         {activeTab === 'profile' && renderProfileTab()}
         {activeTab === 'procedures' && renderProceduresTab()}
         {activeTab === 'schedule' && renderScheduleTab()}
+        {activeTab === 'appointments' && renderAppointmentsTab()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -853,5 +1115,167 @@ const styles = StyleSheet.create({
   },
   slotTextActive: {
     color: '#FFFFFF',
+  },
+  appointmentsHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  filterTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: Colors.light.card,
+    borderWidth: 2,
+    borderColor: Colors.light.border,
+  },
+  filterTabActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  filterTabText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+  },
+  filterTabTextActive: {
+    color: '#FFFFFF',
+  },
+  filterBadge: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: Colors.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  filterBadgeText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+  },
+  filterBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  appointmentCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  appointmentCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  appointmentPatient: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  appointmentService: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
+  appointmentPrice: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.light.primary,
+  },
+  appointmentDetails: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  appointmentDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  appointmentDetailText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
+  appointmentActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  appointmentButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  appointmentButtonComplete: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  appointmentButtonCompleteText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  appointmentButtonCancel: {
+    backgroundColor: '#FEF2F2',
+    borderColor: Colors.light.error,
+  },
+  appointmentButtonCancelText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.error,
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  completedBadgeText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#10B981',
+  },
+  emptyAppointments: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+  },
+  emptyAppointmentsTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyAppointmentsText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

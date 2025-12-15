@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -116,6 +117,50 @@ export default function AdminDashboard() {
   const doctorRevenue = filteredAppointments
     .filter((apt) => apt.status === 'completed')
     .reduce((sum, apt) => sum + apt.price, 0);
+
+  const handleAddDoctor = () => {
+    Alert.alert(
+      'Adicionar Médico',
+      'Cadastrar novo médico no sistema.\n\n• Nome completo\n• CRM\n• Especialidade\n• Contato\n• Documentação',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleAddPatient = () => {
+    Alert.alert(
+      'Adicionar Paciente',
+      'Cadastrar novo paciente no sistema.\n\n• Nome completo\n• CPF\n• Data de nascimento\n• Contato\n• Convênio',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleEditDoctor = (doctorId: string) => {
+    const doctor = doctors.find((d) => d.id === doctorId);
+    Alert.alert(
+      'Editar Médico',
+      `Editar informações de ${doctor?.name || 'médico'}.\n\nEsta funcionalidade abrirá um formulário completo para edição.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleDeleteDoctor = (doctorId: string) => {
+    const doctor = doctors.find((d) => d.id === doctorId);
+    Alert.alert(
+      'Remover Médico',
+      `Tem certeza que deseja remover ${doctor?.name || 'este médico'} do sistema?\n\nEsta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => {
+            console.log('Doctor removed:', doctorId);
+            Alert.alert('Sucesso', 'Médico removido do sistema.');
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <>
@@ -361,7 +406,7 @@ export default function AdminDashboard() {
                 <Text style={styles.sectionTitle}>
                   Médicos Cadastrados ({doctors.length})
                 </Text>
-                <TouchableOpacity style={styles.addButton}>
+                <TouchableOpacity style={styles.addButton} onPress={handleAddDoctor}>
                   <UserPlus size={18} color="#FFFFFF" />
                   <Text style={styles.addButtonText}>Adicionar</Text>
                 </TouchableOpacity>
@@ -399,10 +444,16 @@ export default function AdminDashboard() {
                     </View>
                   </View>
                   <View style={styles.doctorActions}>
-                    <TouchableOpacity style={styles.actionButton}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleEditDoctor(doctor.id)}
+                    >
                       <Edit2 size={16} color={Colors.light.primary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleDeleteDoctor(doctor.id)}
+                    >
                       <Trash2 size={16} color={Colors.light.error} />
                     </TouchableOpacity>
                   </View>
@@ -417,7 +468,7 @@ export default function AdminDashboard() {
                 <Text style={styles.sectionTitle}>
                   Pacientes Cadastrados ({MOCK_STATS.totalPatients})
                 </Text>
-                <TouchableOpacity style={styles.addButton}>
+                <TouchableOpacity style={styles.addButton} onPress={handleAddPatient}>
                   <UserPlus size={18} color="#FFFFFF" />
                   <Text style={styles.addButtonText}>Adicionar</Text>
                 </TouchableOpacity>

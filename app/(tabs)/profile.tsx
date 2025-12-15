@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -17,6 +20,8 @@ import {
   HelpCircle,
   LogOut,
   Stethoscope,
+  X,
+  Save,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
@@ -41,11 +46,95 @@ const MENU_SECTIONS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, switchUserType } = useUser();
+  const { user, switchUserType, updateUser } = useUser();
   const router = useRouter();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    location: user?.location || '',
+  });
 
   const handleMenuAction = (action: string) => {
     console.log('Menu action:', action);
+    
+    switch (action) {
+      case 'editProfile':
+        setEditForm({
+          name: user?.name || '',
+          email: user?.email || '',
+          phone: user?.phone || '',
+          location: user?.location || '',
+        });
+        setShowEditModal(true);
+        break;
+      case 'notifications':
+        Alert.alert(
+          'Notificações',
+          'Configure suas preferências de notificação.\n\n- Notificações de consultas\n- Lembretes\n- Novidades',
+          [{ text: 'OK' }]
+        );
+        break;
+      case 'payment':
+        Alert.alert(
+          'Formas de Pagamento',
+          'Gerencie seus métodos de pagamento.\n\n- Cartões salvos\n- Adicionar novo cartão\n- Histórico de pagamentos',
+          [{ text: 'OK' }]
+        );
+        break;
+      case 'preferences':
+        Alert.alert(
+          'Preferências',
+          'Personalize sua experiência.\n\n- Idioma\n- Tema\n- Configurações de privacidade',
+          [{ text: 'OK' }]
+        );
+        break;
+      case 'support':
+        Alert.alert(
+          'Ajuda e Suporte',
+          'Precisa de ajuda?\n\n- Central de Ajuda\n- Fale Conosco\n- Termos de Uso\n- Política de Privacidade',
+          [{ text: 'OK' }]
+        );
+        break;
+      default:
+        Alert.alert('Em breve', 'Esta funcionalidade estará disponível em breve.');
+    }
+  };
+
+  const handleSaveProfile = () => {
+    if (!editForm.name.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha seu nome.');
+      return;
+    }
+    
+    updateUser({
+      name: editForm.name,
+      email: editForm.email,
+      phone: editForm.phone,
+      location: editForm.location,
+    });
+    
+    setShowEditModal(false);
+    Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sair da Conta',
+      'Tem certeza que deseja sair?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: () => {
+            console.log('User logged out');
+            Alert.alert('Até logo!', 'Você foi desconectado com sucesso.');
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -75,7 +164,10 @@ export default function ProfileScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity style={styles.editProfileBtn}>
+          <TouchableOpacity 
+            style={styles.editProfileBtn}
+            onPress={() => handleMenuAction('editProfile')}
+          >
             <Text style={styles.editProfileText}>Editar Perfil</Text>
           </TouchableOpacity>
         </View>
@@ -146,7 +238,7 @@ export default function ProfileScreen() {
           </View>
         ))}
 
-        <TouchableOpacity style={styles.logoutBtn}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <LogOut size={20} color={Colors.light.error} />
           <Text style={styles.logoutText}>Sair da Conta</Text>
         </TouchableOpacity>
@@ -155,6 +247,91 @@ export default function ProfileScreen() {
           <Text style={styles.versionText}>Versão 1.0.0</Text>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Perfil</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowEditModal(false)}
+              >
+                <X size={24} color={Colors.light.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Nome Completo</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editForm.name}
+                  onChangeText={(text) => setEditForm({ ...editForm, name: text })}
+                  placeholder="Seu nome completo"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editForm.email}
+                  onChangeText={(text) => setEditForm({ ...editForm, email: text })}
+                  placeholder="seu@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Telefone</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editForm.phone}
+                  onChangeText={(text) => setEditForm({ ...editForm, phone: text })}
+                  placeholder="(11) 99999-9999"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Localização</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editForm.location}
+                  onChangeText={(text) => setEditForm({ ...editForm, location: text })}
+                  placeholder="Cidade, Estado"
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleSaveProfile}
+              >
+                <Save size={18} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -385,5 +562,98 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 13,
     color: Colors.light.textSecondary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.light.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.light.text,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+  },
+  saveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primary,
+  },
+  saveButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });
