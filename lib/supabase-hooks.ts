@@ -353,6 +353,34 @@ export function useDeleteService() {
   });
 }
 
+export function useInviteDoctor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (doctor: {
+      name: string;
+      email: string;
+      phone: string;
+      crm: string;
+      specialtyId: string;
+      bio: string;
+      location?: string;
+      city?: string;
+      state?: string;
+    }) => {
+      console.log('Creating doctor invite:', doctor);
+      
+      throw new Error(
+        'Para adicionar um médico, peça para ele fazer login primeiro usando o telefone ' + doctor.phone + 
+        '. Depois você poderá editar o perfil dele e adicionar CRM, especialidade e outros dados.'
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['doctors'] });
+    },
+  });
+}
+
 export function useCreateOrUpdateDoctor() {
   const queryClient = useQueryClient();
 
@@ -371,20 +399,19 @@ export function useCreateOrUpdateDoctor() {
       state?: string;
     }) => {
       if (doctor.id) {
-        const { error: userError } = await supabase
-          .from('users')
+        const { error: profileError } = await supabase
+          .from('profiles')
           .update({
-            name: doctor.name,
-            email: doctor.email,
-            phone: doctor.phone,
-            avatar: doctor.avatar,
+            full_name: doctor.name,
+            phone: doctor.phone || '',
+            avatar_url: doctor.avatar,
             location: doctor.location,
             city: doctor.city,
             state: doctor.state,
           })
           .eq('id', doctor.id);
 
-        if (userError) throw userError;
+        if (profileError) throw profileError;
 
         const { data, error: doctorError } = await supabase
           .from('doctors')
@@ -400,36 +427,7 @@ export function useCreateOrUpdateDoctor() {
         if (doctorError) throw doctorError;
         return data;
       } else {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .insert({
-            name: doctor.name,
-            email: doctor.email,
-            phone: doctor.phone,
-            avatar: doctor.avatar,
-            user_type: 'doctor',
-            location: doctor.location,
-            city: doctor.city,
-            state: doctor.state,
-          })
-          .select()
-          .single();
-
-        if (userError) throw userError;
-
-        const { data: doctorData, error: doctorError } = await supabase
-          .from('doctors')
-          .insert({
-            id: userData.id,
-            crm: doctor.crm,
-            specialty_id: doctor.specialtyId,
-            bio: doctor.bio,
-          })
-          .select()
-          .single();
-
-        if (doctorError) throw doctorError;
-        return doctorData;
+        throw new Error('Para adicionar novo médico, use o convite por SMS');
       }
     },
     onSuccess: () => {

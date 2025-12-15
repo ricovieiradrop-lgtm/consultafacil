@@ -29,7 +29,7 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
-import { useDoctors, useSpecialties, useCreateOrUpdateDoctor } from '@/lib/supabase-hooks';
+import { useDoctors, useSpecialties, useInviteDoctor } from '@/lib/supabase-hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -111,7 +111,7 @@ export default function AdminDashboard() {
   
   const { data: doctorsData } = useDoctors();
   const { data: specialtiesData } = useSpecialties();
-  const createDoctorMutation = useCreateOrUpdateDoctor();
+  const inviteDoctorMutation = useInviteDoctor();
   
   const doctors = doctorsData || [];
   const specialties = specialtiesData || [];
@@ -156,13 +156,18 @@ export default function AdminDashboard() {
   };
   
   const handleSaveDoctor = async () => {
-    if (!doctorForm.name || !doctorForm.email || !doctorForm.crm || !doctorForm.specialtyId) {
-      Alert.alert('Erro', 'Preencha todos os campos obrigatórios');
+    if (!doctorForm.name || !doctorForm.phone || !doctorForm.crm || !doctorForm.specialtyId) {
+      Alert.alert('Erro', 'Preencha todos os campos obrigatórios (Nome, Telefone, CRM, Especialidade)');
+      return;
+    }
+    
+    if (!doctorForm.phone.match(/^\+?[1-9]\d{10,14}$/)) {
+      Alert.alert('Erro', 'Digite um telefone válido com DDD e código do país (ex: +5511999999999)');
       return;
     }
     
     try {
-      await createDoctorMutation.mutateAsync({
+      await inviteDoctorMutation.mutateAsync({
         name: doctorForm.name,
         email: doctorForm.email,
         phone: doctorForm.phone,
@@ -175,10 +180,14 @@ export default function AdminDashboard() {
       });
       
       setShowAddDoctorModal(false);
-      Alert.alert('Sucesso', 'Médico adicionado com sucesso!');
-    } catch (error) {
-      console.error('Error adding doctor:', error);
-      Alert.alert('Erro', 'Não foi possível adicionar o médico. Tente novamente.');
+      Alert.alert(
+        'Instrução',
+        'Peça para o médico fazer login usando o telefone ' + doctorForm.phone + '. Depois você poderá editar o perfil dele aqui no dashboard admin.'
+      );
+    } catch (error: any) {
+      console.error('Error inviting doctor:', error);
+      const errorMessage = error?.message || JSON.stringify(error);
+      Alert.alert('Erro ao convidar médico', errorMessage);
     }
   };
 
@@ -830,7 +839,21 @@ export default function AdminDashboard() {
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Email *</Text>
+                  <Text style={styles.formLabel}>Telefone * (com código do país)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="+5511999999999"
+                    value={doctorForm.phone}
+                    onChangeText={(text) => setDoctorForm({ ...doctorForm, phone: text })}
+                    keyboardType="phone-pad"
+                  />
+                  <Text style={styles.formHint}>
+                    Um SMS será enviado para este número com o código de acesso
+                  </Text>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Email (opcional)</Text>
                   <TextInput
                     style={styles.formInput}
                     placeholder="joao@example.com"
@@ -838,17 +861,6 @@ export default function AdminDashboard() {
                     onChangeText={(text) => setDoctorForm({ ...doctorForm, email: text })}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                  />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Telefone</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="(11) 99999-9999"
-                    value={doctorForm.phone}
-                    onChangeText={(text) => setDoctorForm({ ...doctorForm, phone: text })}
-                    keyboardType="phone-pad"
                   />
                 </View>
 
@@ -946,10 +958,10 @@ export default function AdminDashboard() {
                 <TouchableOpacity
                   style={[styles.formButton, styles.formButtonPrimary]}
                   onPress={handleSaveDoctor}
-                  disabled={createDoctorMutation.isPending}
+                  disabled={inviteDoctorMutation.isPending}
                 >
                   <Text style={styles.formButtonText}>
-                    {createDoctorMutation.isPending ? 'Salvando...' : 'Salvar'}
+                    {inviteDoctorMutation.isPending ? 'Enviando...' : 'Enviar Convite'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1569,6 +1581,12 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     borderWidth: 1,
     borderColor: Colors.light.border,
+  },
+  formHint: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 6,
+    lineHeight: 16,
   },
   formTextArea: {
     height: 100,
