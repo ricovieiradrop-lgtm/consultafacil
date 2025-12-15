@@ -61,7 +61,8 @@ export default function VerifyOTPScreen() {
     
     try {
       await verifyOTP(phone, otpCode);
-      router.replace('/complete-profile' as any);
+      
+      console.log('🔍 Verify OTP: Checking if navigation is needed');
     } catch (error: any) {
       console.error('Erro ao verificar OTP:', error);
       Alert.alert(

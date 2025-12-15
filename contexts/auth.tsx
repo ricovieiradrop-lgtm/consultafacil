@@ -111,6 +111,42 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       throw new Error('Código inválido');
     }
 
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      
+      console.log('🔍 Auth: Checking if profile exists for phone', phone);
+      const { data: existingProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('phone', phone)
+        .single();
+
+      if (existingProfile && !profileError) {
+        console.log('✅ Auth: Found existing profile', existingProfile.role, existingProfile.full_name);
+        
+        const mockUser: MockUser = {
+          id: existingProfile.id,
+          phone: existingProfile.phone,
+        };
+
+        await AsyncStorage.setItem('mock_user', JSON.stringify(mockUser));
+        await AsyncStorage.setItem('mock_profile', JSON.stringify(existingProfile));
+        
+        setAuthState({
+          session: { user: mockUser },
+          user: mockUser,
+          profile: existingProfile,
+          isLoading: false,
+          isOnboarding: false,
+        });
+
+        console.log('✅ Auth: Logged in as existing user');
+        return { session: { user: mockUser }, user: mockUser };
+      }
+    } catch (error) {
+      console.log('⚠️ Auth: Could not check existing profile, continuing with new user flow', error);
+    }
+
     const mockUser: MockUser = {
       id: `user_${Date.now()}`,
       phone,
@@ -125,7 +161,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       isOnboarding: true,
     }));
 
-    console.log('✅ Auth (MOCK): OTP verified, user created');
+    console.log('✅ Auth (MOCK): OTP verified, new user created');
     return { session: { user: mockUser }, user: mockUser };
   };
 

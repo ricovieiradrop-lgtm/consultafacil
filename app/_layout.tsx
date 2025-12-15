@@ -26,16 +26,25 @@ function RootLayoutNav() {
 
     if (!session) {
       if (!inAuthGroup) {
+        console.log('🔄 Navigation: No session, redirecting to welcome');
         router.replace('/welcome');
       }
     } else {
       if (isOnboarding || !profile) {
         if (segments[0] !== 'complete-profile') {
+          console.log('🔄 Navigation: Onboarding needed, redirecting to complete-profile');
           router.replace('/complete-profile');
         }
       } else {
         if (inAuthGroup) {
-          router.replace('/(tabs)');
+          console.log('🔄 Navigation: Profile complete, redirecting based on role:', profile.role);
+          if (profile.role === 'doctor') {
+            router.replace('/doctor-dashboard');
+          } else if (profile.role === 'admin') {
+            router.replace('/admin-dashboard');
+          } else {
+            router.replace('/(tabs)');
+          }
         }
       }
     }
