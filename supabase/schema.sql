@@ -144,11 +144,19 @@ CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
+-- FUNCTION: Verificar role do usuário (bypass RLS)
+-- ============================================================
+CREATE OR REPLACE FUNCTION auth.user_role()
+RETURNS TEXT AS $
+  SELECT role FROM public.profiles WHERE id = auth.uid()
+$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- ============================================================
 -- FUNCTION: Criar profile automaticamente ao criar usuário
 -- Este trigger é executado quando um novo usuário é criado no auth.users
 -- ============================================================
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $
 BEGIN
   INSERT INTO public.profiles (id, full_name, phone, cpf, role)
   VALUES (
@@ -160,7 +168,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger para criar profile automaticamente
 CREATE TRIGGER on_auth_user_created
@@ -267,32 +275,22 @@ CREATE POLICY "Doctors can read their patients basic info"
 -- Admin pode ler todos os profiles (COM CPF)
 CREATE POLICY "Admin can read all profiles"
   ON profiles FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- Admin pode atualizar qualquer profile
 CREATE POLICY "Admin can update all profiles"
   ON profiles FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- Admin pode inserir novos profiles (para criar médicos)
 CREATE POLICY "Admin can insert profiles"
   ON profiles FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  WITH CHECK (auth.user_role() = 'admin');
+
+-- Usuários podem criar seu próprio profile na primeira vez
+CREATE POLICY "Users can insert own profile"
+  ON profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
 
 -- ============================================================
 -- POLICIES: doctors
@@ -312,12 +310,7 @@ CREATE POLICY "Doctors can update own profile"
 -- Admin pode fazer tudo com doctors
 CREATE POLICY "Admin can manage doctors"
   ON doctors FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: services
@@ -337,12 +330,7 @@ CREATE POLICY "Doctors can manage own services"
 -- Admin pode gerenciar todos os serviços
 CREATE POLICY "Admin can manage all services"
   ON services FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: appointments
@@ -363,10 +351,7 @@ CREATE POLICY "Patients can create appointments"
   ON appointments FOR INSERT
   WITH CHECK (
     patient_id = auth.uid() AND
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'patient'
-    )
+    auth.user_role() = 'patient'
   );
 
 -- Paciente pode cancelar suas próprias consultas
@@ -384,12 +369,7 @@ CREATE POLICY "Doctors can update own appointments status"
 -- Admin pode gerenciar todas as consultas
 CREATE POLICY "Admin can manage all appointments"
   ON appointments FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: doctor_availability
@@ -409,12 +389,7 @@ CREATE POLICY "Doctors can manage own availability"
 -- Admin pode gerenciar toda disponibilidade
 CREATE POLICY "Admin can manage all availability"
   ON doctor_availability FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: specialties
@@ -428,12 +403,7 @@ CREATE POLICY "Public can read specialties"
 -- Admin pode gerenciar especialidades
 CREATE POLICY "Admin can manage specialties"
   ON specialties FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  USING (auth.user_role() = 'admin');
 
 -- ============================================================
 -- DADOS INICIAIS: Especialidades
