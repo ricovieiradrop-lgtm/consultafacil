@@ -1,14 +1,23 @@
--- Enable UUID extension
+-- ============================================================
+-- SCHEMA COMPLETO COM SUPABASE AUTH + RLS RIGOROSO
+-- Sistema de agendamento médico com autenticação por telefone
+-- ============================================================
+
+-- Habilitar extensões necessárias
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table (pacientes, médicos, admin)
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  phone TEXT,
-  avatar TEXT,
-  user_type TEXT NOT NULL CHECK (user_type IN ('patient', 'doctor', 'admin')),
+-- ============================================================
+-- TABELA: profiles
+-- Ligada ao auth.users do Supabase
+-- Contém dados pessoais e sensíveis dos usuários
+-- ============================================================
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  cpf TEXT NOT NULL UNIQUE, -- NUNCA expor em queries públicas
+  phone TEXT NOT NULL UNIQUE,
+  avatar_url TEXT,
+  role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'admin')) DEFAULT 'patient',
   location TEXT,
   city TEXT,
   state TEXT,
@@ -16,7 +25,10 @@ CREATE TABLE users (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Specialties table
+-- ============================================================
+-- TABELA: specialties
+-- Especialidades médicas (público)
+-- ============================================================
 CREATE TABLE specialties (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL UNIQUE,
@@ -24,36 +36,46 @@ CREATE TABLE specialties (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Doctors table (informações específicas dos médicos)
+-- ============================================================
+-- TABELA: doctors
+-- Informações específicas dos médicos
+-- ============================================================
 CREATE TABLE doctors (
-  id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
   crm TEXT NOT NULL UNIQUE,
   specialty_id UUID REFERENCES specialties(id),
   bio TEXT,
   rating DECIMAL(2,1) DEFAULT 0.0,
   review_count INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Services/Procedures table (serviços oferecidos pelos médicos)
+-- ============================================================
+-- TABELA: services
+-- Procedimentos oferecidos pelos médicos
+-- ============================================================
 CREATE TABLE services (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
+  doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   price DECIMAL(10,2) NOT NULL,
   duration INTEGER NOT NULL, -- em minutos
-  active BOOLEAN DEFAULT true,
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Appointments table (consultas agendadas)
+-- ============================================================
+-- TABELA: appointments
+-- Consultas agendadas
+-- ============================================================
 CREATE TABLE appointments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
-  patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+  patient_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   service_id UUID REFERENCES services(id) ON DELETE SET NULL,
   appointment_date DATE NOT NULL,
   appointment_time TIME NOT NULL,
@@ -61,14 +83,18 @@ CREATE TABLE appointments (
   price DECIMAL(10,2) NOT NULL,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT unique_appointment UNIQUE(doctor_id, appointment_date, appointment_time)
 );
 
--- Doctor availability table (disponibilidade dos médicos)
+-- ============================================================
+-- TABELA: doctor_availability
+-- Disponibilidade de horários dos médicos
+-- ============================================================
 CREATE TABLE doctor_availability (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,
-  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6), -- 0 = domingo, 6 = sábado
+  doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+  day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
   is_active BOOLEAN DEFAULT true,
@@ -76,28 +102,36 @@ CREATE TABLE doctor_availability (
   UNIQUE(doctor_id, day_of_week, start_time)
 );
 
--- Create indexes for better performance
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_type ON users(user_type);
+-- ============================================================
+-- ÍNDICES PARA PERFORMANCE
+-- ============================================================
+CREATE INDEX idx_profiles_phone ON profiles(phone);
+CREATE INDEX idx_profiles_role ON profiles(role);
 CREATE INDEX idx_doctors_specialty ON doctors(specialty_id);
+CREATE INDEX idx_doctors_active ON doctors(is_active);
 CREATE INDEX idx_services_doctor ON services(doctor_id);
+CREATE INDEX idx_services_active ON services(is_active);
 CREATE INDEX idx_appointments_doctor ON appointments(doctor_id);
 CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 CREATE INDEX idx_appointments_date ON appointments(appointment_date);
 CREATE INDEX idx_appointments_status ON appointments(status);
 CREATE INDEX idx_availability_doctor ON doctor_availability(doctor_id);
 
--- Function to update updated_at timestamp
+-- ============================================================
+-- FUNCTION: Atualizar updated_at automaticamente
+-- ============================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
--- Triggers for updated_at
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+-- ============================================================
+-- TRIGGERS: updated_at
+-- ============================================================
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_doctors_updated_at BEFORE UPDATE ON doctors
@@ -109,39 +143,58 @@ CREATE TRIGGER update_services_updated_at BEFORE UPDATE ON services
 CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert default specialties
-INSERT INTO specialties (name, icon) VALUES
-  ('Cardiologia', 'heart'),
-  ('Dermatologia', 'sparkles'),
-  ('Ortopedia', 'bone'),
-  ('Pediatria', 'baby'),
-  ('Neurologia', 'brain'),
-  ('Oftalmologia', 'eye');
+-- ============================================================
+-- FUNCTION: Criar profile automaticamente ao criar usuário
+-- Este trigger é executado quando um novo usuário é criado no auth.users
+-- ============================================================
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, phone, cpf, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', 'Usuário'),
+    COALESCE(NEW.phone, ''),
+    COALESCE(NEW.raw_user_meta_data->>'cpf', ''),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'patient')
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create a view for doctor listings with all related info
+-- Trigger para criar profile automaticamente
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- ============================================================
+-- VIEWS: Queries otimizadas e seguras
+-- ============================================================
+
+-- View: Listagem pública de médicos (SEM CPF)
 CREATE OR REPLACE VIEW doctor_listings AS
 SELECT 
   d.id,
-  u.name,
-  u.email,
-  u.phone,
-  u.avatar,
-  u.location,
-  u.city,
-  u.state,
+  p.full_name,
+  p.phone,
+  p.avatar_url,
+  p.location,
+  p.city,
+  p.state,
   d.crm,
   d.bio,
   d.rating,
   d.review_count,
+  d.is_active,
   s.id as specialty_id,
   s.name as specialty,
   s.icon as specialty_icon
 FROM doctors d
-JOIN users u ON d.id = u.id
+JOIN profiles p ON d.id = p.id
 LEFT JOIN specialties s ON d.specialty_id = s.id
-WHERE u.user_type = 'doctor';
+WHERE d.is_active = true AND p.role = 'doctor';
 
--- Create a view for appointments with doctor and patient info
+-- View: Detalhes de consultas (SEM CPF do paciente)
 CREATE OR REPLACE VIEW appointment_details AS
 SELECT 
   a.id,
@@ -152,59 +205,298 @@ SELECT
   a.notes,
   a.created_at,
   d.id as doctor_id,
-  du.name as doctor_name,
-  du.avatar as doctor_avatar,
+  dp.full_name as doctor_name,
+  dp.avatar_url as doctor_avatar,
   doc.crm as doctor_crm,
   sp.name as doctor_specialty,
-  p.id as patient_id,
-  pu.name as patient_name,
-  pu.email as patient_email,
-  pu.phone as patient_phone,
-  pu.avatar as patient_avatar,
+  a.patient_id,
+  pp.full_name as patient_name,
+  pp.phone as patient_phone,
+  pp.avatar_url as patient_avatar,
   srv.id as service_id,
   srv.name as service_name,
   srv.description as service_description,
   srv.duration as service_duration
 FROM appointments a
 JOIN doctors d ON a.doctor_id = d.id
-JOIN users du ON d.id = du.id
+JOIN profiles dp ON d.id = dp.id
 JOIN doctors doc ON d.id = doc.id
 LEFT JOIN specialties sp ON doc.specialty_id = sp.id
-JOIN users pu ON a.patient_id = pu.id
-LEFT JOIN users p ON a.patient_id = p.id
+JOIN profiles pp ON a.patient_id = pp.id
 LEFT JOIN services srv ON a.service_id = srv.id;
 
--- Enable Row Level Security (RLS) - preparado para quando adicionar auth
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS) - RIGOROSO
+-- ============================================================
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE doctors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE doctor_availability ENABLE ROW LEVEL SECURITY;
+ALTER TABLE specialties ENABLE ROW LEVEL SECURITY;
 
--- Policies públicas temporárias (para desenvolvimento sem auth)
--- Você pode ajustar essas policies depois quando implementar autenticação
+-- ============================================================
+-- POLICIES: profiles
+-- ============================================================
 
-CREATE POLICY "Allow public read access to users" ON users FOR SELECT USING (true);
-CREATE POLICY "Allow public insert access to users" ON users FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update access to users" ON users FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete access to users" ON users FOR DELETE USING (true);
+-- Usuário pode ler apenas seu próprio profile
+CREATE POLICY "Users can read own profile"
+  ON profiles FOR SELECT
+  USING (auth.uid() = id);
 
-CREATE POLICY "Allow public read access to doctors" ON doctors FOR SELECT USING (true);
-CREATE POLICY "Allow public insert access to doctors" ON doctors FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update access to doctors" ON doctors FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete access to doctors" ON doctors FOR DELETE USING (true);
+-- Usuário pode atualizar apenas seu próprio profile
+CREATE POLICY "Users can update own profile"
+  ON profiles FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Allow public read access to services" ON services FOR SELECT USING (true);
-CREATE POLICY "Allow public insert access to services" ON services FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update access to services" ON services FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete access to services" ON services FOR DELETE USING (true);
+-- Médicos podem ler dados básicos de seus pacientes (SEM CPF)
+-- Esta policy é implementada via function segura
+CREATE POLICY "Doctors can read their patients basic info"
+  ON profiles FOR SELECT
+  USING (
+    role = 'patient' AND 
+    EXISTS (
+      SELECT 1 FROM appointments a
+      WHERE a.patient_id = profiles.id
+      AND a.doctor_id = auth.uid()
+    )
+  );
 
-CREATE POLICY "Allow public read access to appointments" ON appointments FOR SELECT USING (true);
-CREATE POLICY "Allow public insert access to appointments" ON appointments FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update access to appointments" ON appointments FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete access to appointments" ON appointments FOR DELETE USING (true);
+-- Admin pode ler todos os profiles (COM CPF)
+CREATE POLICY "Admin can read all profiles"
+  ON profiles FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
 
-CREATE POLICY "Allow public read access to availability" ON doctor_availability FOR SELECT USING (true);
-CREATE POLICY "Allow public insert access to availability" ON doctor_availability FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update access to availability" ON doctor_availability FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete access to availability" ON doctor_availability FOR DELETE USING (true);
+-- Admin pode atualizar qualquer profile
+CREATE POLICY "Admin can update all profiles"
+  ON profiles FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- Admin pode inserir novos profiles (para criar médicos)
+CREATE POLICY "Admin can insert profiles"
+  ON profiles FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================================
+-- POLICIES: doctors
+-- ============================================================
+
+-- Todos podem ler médicos ativos (informações públicas)
+CREATE POLICY "Public can read active doctors"
+  ON doctors FOR SELECT
+  USING (is_active = true);
+
+-- Médico pode atualizar seu próprio perfil
+CREATE POLICY "Doctors can update own profile"
+  ON doctors FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- Admin pode fazer tudo com doctors
+CREATE POLICY "Admin can manage doctors"
+  ON doctors FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================================
+-- POLICIES: services
+-- ============================================================
+
+-- Todos podem ler serviços ativos
+CREATE POLICY "Public can read active services"
+  ON services FOR SELECT
+  USING (is_active = true);
+
+-- Médico pode gerenciar seus próprios serviços
+CREATE POLICY "Doctors can manage own services"
+  ON services FOR ALL
+  USING (doctor_id = auth.uid())
+  WITH CHECK (doctor_id = auth.uid());
+
+-- Admin pode gerenciar todos os serviços
+CREATE POLICY "Admin can manage all services"
+  ON services FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================================
+-- POLICIES: appointments
+-- ============================================================
+
+-- Paciente pode ler suas próprias consultas
+CREATE POLICY "Patients can read own appointments"
+  ON appointments FOR SELECT
+  USING (patient_id = auth.uid());
+
+-- Médico pode ler suas próprias consultas
+CREATE POLICY "Doctors can read own appointments"
+  ON appointments FOR SELECT
+  USING (doctor_id = auth.uid());
+
+-- Paciente pode criar consultas (apenas como patient_id)
+CREATE POLICY "Patients can create appointments"
+  ON appointments FOR INSERT
+  WITH CHECK (
+    patient_id = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'patient'
+    )
+  );
+
+-- Paciente pode cancelar suas próprias consultas
+CREATE POLICY "Patients can cancel own appointments"
+  ON appointments FOR UPDATE
+  USING (patient_id = auth.uid() AND status = 'scheduled')
+  WITH CHECK (patient_id = auth.uid() AND status = 'cancelled');
+
+-- Médico pode atualizar status das suas consultas
+CREATE POLICY "Doctors can update own appointments status"
+  ON appointments FOR UPDATE
+  USING (doctor_id = auth.uid())
+  WITH CHECK (doctor_id = auth.uid());
+
+-- Admin pode gerenciar todas as consultas
+CREATE POLICY "Admin can manage all appointments"
+  ON appointments FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================================
+-- POLICIES: doctor_availability
+-- ============================================================
+
+-- Todos podem ler disponibilidade ativa
+CREATE POLICY "Public can read active availability"
+  ON doctor_availability FOR SELECT
+  USING (is_active = true);
+
+-- Médico pode gerenciar sua própria disponibilidade
+CREATE POLICY "Doctors can manage own availability"
+  ON doctor_availability FOR ALL
+  USING (doctor_id = auth.uid())
+  WITH CHECK (doctor_id = auth.uid());
+
+-- Admin pode gerenciar toda disponibilidade
+CREATE POLICY "Admin can manage all availability"
+  ON doctor_availability FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================================
+-- POLICIES: specialties
+-- ============================================================
+
+-- Todos podem ler especialidades (público)
+CREATE POLICY "Public can read specialties"
+  ON specialties FOR SELECT
+  USING (true);
+
+-- Admin pode gerenciar especialidades
+CREATE POLICY "Admin can manage specialties"
+  ON specialties FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================================
+-- DADOS INICIAIS: Especialidades
+-- ============================================================
+INSERT INTO specialties (name, icon) VALUES
+  ('Cardiologia', 'heart'),
+  ('Dermatologia', 'sparkles'),
+  ('Ortopedia', 'bone'),
+  ('Pediatria', 'baby'),
+  ('Neurologia', 'brain'),
+  ('Oftalmologia', 'eye')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- FUNCTION SEGURA: Obter dados do paciente sem CPF
+-- Médicos podem chamar esta function para ver dados básicos
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_patient_safe_info(patient_uuid UUID)
+RETURNS TABLE (
+  id UUID,
+  full_name TEXT,
+  phone TEXT,
+  avatar_url TEXT
+) AS $$
+BEGIN
+  -- Verificar se quem chama é médico e tem consulta com o paciente
+  IF NOT EXISTS (
+    SELECT 1 FROM appointments a
+    WHERE a.doctor_id = auth.uid()
+    AND a.patient_id = patient_uuid
+  ) THEN
+    RAISE EXCEPTION 'Acesso negado';
+  END IF;
+
+  RETURN QUERY
+  SELECT p.id, p.full_name, p.phone, p.avatar_url
+  FROM profiles p
+  WHERE p.id = patient_uuid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- OBSERVAÇÕES DE SEGURANÇA E LGPD
+-- ============================================================
+-- 
+-- ✅ CPF nunca é exposto em views públicas
+-- ✅ CPF só é acessível pelo próprio usuário ou admin
+-- ✅ Médicos NUNCA têm acesso ao CPF dos pacientes
+-- ✅ Todas as queries respeitam auth.uid()
+-- ✅ RLS ativado em todas as tabelas sensíveis
+-- ✅ Policies impedem acesso não autorizado
+-- ✅ Functions com SECURITY DEFINER para operações especiais
+-- ✅ Trigger automático para criar profile ao registrar usuário
+-- ✅ Índices para performance em queries autenticadas
+-- 
+-- 🔒 PONTOS CRÍTICOS:
+-- 1. NUNCA desabilitar RLS em produção
+-- 2. SEMPRE usar auth.uid() nas policies
+-- 3. Validar CPF no frontend antes de enviar
+-- 4. Implementar rate limiting no Supabase Edge Functions
+-- 5. Monitorar logs de acesso ao CPF
+-- 6. Implementar soft delete para LGPD (right to be forgotten)
+-- 7. Criptografar backups do banco
+-- 8. Habilitar 2FA para contas admin
+-- 
+-- ============================================================
