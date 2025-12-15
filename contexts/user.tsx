@@ -13,7 +13,18 @@ export interface User {
 }
 
 export const [UserProvider, useUser] = createContextHook(() => {
-  const { profile, updateProfile, isLoading } = useAuth();
+  const authContext = useAuth();
+  
+  if (!authContext) {
+    return {
+      user: null,
+      isLoading: true,
+      updateUser: async () => {},
+      switchUserType: async () => {},
+    };
+  }
+
+  const { profile, updateProfile, isLoading } = authContext;
 
   const user: User | null = profile ? {
     id: profile.id,
