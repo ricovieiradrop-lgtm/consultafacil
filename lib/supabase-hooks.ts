@@ -353,34 +353,6 @@ export function useDeleteService() {
   });
 }
 
-export function useInviteDoctor() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (doctor: {
-      name: string;
-      phone: string;
-    }) => {
-      console.log('Creating doctor with basic info:', doctor);
-      
-      const { data, error } = await supabase.rpc('admin_invite_doctor', {
-        p_phone: doctor.phone,
-        p_name: doctor.name,
-      });
-
-      if (error) {
-        console.error('Error inviting doctor:', error);
-        throw new Error(error.message || 'Erro ao cadastrar médico');
-      }
-
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['doctors'] });
-    },
-  });
-}
-
 export function useCreateOrUpdateDoctor() {
   const queryClient = useQueryClient();
 
@@ -480,6 +452,32 @@ export function useCreateOrUpdateAvailability() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['availability', variables.doctorId] });
+    },
+  });
+}
+
+export function useInviteDoctor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name, phone }: { name: string; phone: string }) => {
+      console.log('📤 Inviting doctor:', { name, phone });
+
+      const { data, error } = await supabase.rpc('admin_invite_doctor', {
+        p_name: name,
+        p_phone: phone,
+      });
+
+      if (error) {
+        console.error('❌ Error inviting doctor:', error);
+        throw error;
+      }
+
+      console.log('✅ Doctor invited successfully:', data);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['doctors'] });
     },
   });
 }
