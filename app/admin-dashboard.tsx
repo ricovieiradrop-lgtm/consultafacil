@@ -101,7 +101,7 @@ const MOCK_APPOINTMENTS = [
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { updateUser } = useUser();
+  const { setViewMode } = useUser();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [periodFilter, setPeriodFilter] = useState<PeriodType>('month');
   const [showPeriodModal, setShowPeriodModal] = useState(false);
@@ -231,7 +231,7 @@ export default function AdminDashboard() {
               <TouchableOpacity
                 style={styles.testModeButton}
                 onPress={() => {
-                  updateUser({ type: 'patient' });
+                  setViewMode('patient');
                   router.push('/');
                 }}
               >
@@ -240,7 +240,7 @@ export default function AdminDashboard() {
               <TouchableOpacity
                 style={[styles.testModeButton, styles.testModeButtonDoctor]}
                 onPress={() => {
-                  updateUser({ type: 'doctor' });
+                  setViewMode('doctor');
                   router.push('/doctor-dashboard' as any);
                 }}
               >

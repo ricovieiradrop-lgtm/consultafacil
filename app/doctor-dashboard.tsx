@@ -66,7 +66,7 @@ const TIME_SLOTS = [
 ];
 
 export default function DoctorDashboardScreen() {
-  const { user, updateUser } = useUser();
+  const { user, updateUser, setViewMode, realRole } = useUser();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [appointmentsFilter, setAppointmentsFilter] = useState<'upcoming' | 'completed'>('upcoming');
@@ -748,18 +748,23 @@ export default function DoctorDashboardScreen() {
             <TouchableOpacity
               style={styles.testModeButton}
               onPress={() => {
-                updateUser({ type: 'patient' });
+                setViewMode('patient');
                 router.push('/');
               }}
             >
               <Text style={styles.testModeButtonText}>Modo Paciente</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.testModeButton, styles.testModeButtonAdmin]}
-              onPress={() => router.push('/admin-dashboard' as any)}
-            >
-              <Text style={[styles.testModeButtonText, styles.testModeButtonTextAdmin]}>Admin</Text>
-            </TouchableOpacity>
+            {realRole === 'admin' && (
+              <TouchableOpacity
+                style={[styles.testModeButton, styles.testModeButtonAdmin]}
+                onPress={() => {
+                  setViewMode(null);
+                  router.push('/admin-dashboard' as any);
+                }}
+              >
+                <Text style={[styles.testModeButtonText, styles.testModeButtonTextAdmin]}>Admin</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <View style={styles.headerRight} />

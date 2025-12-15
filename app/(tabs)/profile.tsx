@@ -47,7 +47,7 @@ const MENU_SECTIONS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, switchUserType, updateUser } = useUser();
+  const { user, updateUser } = useUser();
   const authContext = useAuth();
   const router = useRouter();
   const [showEditModal, setShowEditModal] = useState(false);
@@ -197,24 +197,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {user?.type === 'patient' && (
-          <View style={styles.testButtonsContainer}>
-            <TouchableOpacity
-              style={styles.switchToDoctorBtn}
-              onPress={() => switchUserType('doctor')}
-            >
-              <Stethoscope size={18} color={Colors.light.primary} />
-              <Text style={styles.switchToDoctorText}>Modo Teste: Acessar como Médico</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.switchToAdminBtn}
-              onPress={() => router.push('/admin-dashboard' as any)}
-            >
-              <Settings size={18} color="#7C3AED" />
-              <Text style={styles.switchToAdminText}>Modo Teste: Dashboard Admin</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+
 
         {MENU_SECTIONS.map((section) => (
           <View key={section.title} style={styles.menuSection}>

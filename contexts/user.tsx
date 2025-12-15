@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useAuth, Profile } from '@/contexts/auth';
 import { UserType } from '@/types';
+import { useState } from 'react';
 
 export interface User {
   id: string;
@@ -14,22 +15,29 @@ export interface User {
 
 export const [UserProvider, useUser] = createContextHook(() => {
   const authContext = useAuth();
+  const [viewMode, setViewMode] = useState<UserType | null>(null);
   
   if (!authContext) {
     return {
       user: null,
       isLoading: true,
       updateUser: async () => {},
-      switchUserType: async () => {},
+      realRole: null,
+      viewMode: null,
+      setViewMode: () => {},
+      resetViewMode: () => {},
     };
   }
 
   const { profile, updateProfile, isLoading } = authContext;
 
+  const realRole = profile?.role as UserType | null;
+  const effectiveRole = viewMode || realRole;
+
   const user: User | null = profile ? {
     id: profile.id,
     name: profile.full_name,
-    type: profile.role as UserType,
+    type: effectiveRole as UserType,
     avatar: profile.avatar_url,
     phone: profile.phone,
     location: profile.location,
@@ -46,14 +54,17 @@ export const [UserProvider, useUser] = createContextHook(() => {
     await updateProfile(profileUpdates);
   };
 
-  const switchUserType = async (type: UserType) => {
-    await updateProfile({ role: type as 'patient' | 'doctor' | 'admin' });
+  const resetViewMode = () => {
+    setViewMode(null);
   };
 
   return {
     user,
     isLoading,
     updateUser,
-    switchUserType,
+    realRole,
+    viewMode,
+    setViewMode,
+    resetViewMode,
   };
 });
