@@ -28,8 +28,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
-import { specialties } from '@/mocks/specialties';
-import { doctors } from '@/mocks/doctors';
+import { useSpecialties, useDoctors } from '@/lib/supabase-hooks';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 56) / 2;
@@ -49,6 +48,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const { data: specialties = [] } = useSpecialties();
+  const { data: doctors = [] } = useDoctors();
 
   const featuredDoctors = doctors.slice(0, 4);
 
