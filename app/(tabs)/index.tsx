@@ -29,6 +29,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
 import { useSpecialties, useDoctors } from '@/lib/supabase-hooks';
+import { specialties as mockSpecialties } from '@/mocks/specialties';
+import { doctors as mockDoctors } from '@/mocks/doctors';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 56) / 2;
@@ -42,6 +44,14 @@ const SPECIALTY_ICONS: Record<string, React.ComponentType<{ size: number; color:
   'eye': Eye,
   'user': User,
   'brain-circuit': BrainCircuit,
+  'heart': HeartPulse,
+  'face': ScanFace,
+  'skeleton': Bone,
+  'child': Baby,
+  'head': Brain,
+  'glasses': Eye,
+  'person': User,
+  'mind': BrainCircuit,
 };
 
 export default function HomeScreen() {
@@ -49,9 +59,12 @@ export default function HomeScreen() {
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   
-  const { data: specialties = [] } = useSpecialties();
-  const { data: doctors = [] } = useDoctors();
+  const { data: specialtiesData } = useSpecialties();
+  const { data: doctorsData } = useDoctors();
 
+  const specialties = specialtiesData && specialtiesData.length > 0 ? specialtiesData : mockSpecialties;
+  const doctors = doctorsData && doctorsData.length > 0 ? doctorsData : mockDoctors;
+  
   const featuredDoctors = doctors.slice(0, 4);
 
   return (
@@ -142,7 +155,11 @@ export default function HomeScreen() {
                   onPress={() => router.push('/search')}
                 >
                   <View style={styles.specialtyIcon}>
-                    {IconComponent && <IconComponent size={28} color={Colors.light.primary} />}
+                    {IconComponent ? (
+                      <IconComponent size={28} color={Colors.light.primary} />
+                    ) : (
+                      <HeartPulse size={28} color={Colors.light.primary} />
+                    )}
                   </View>
                   <Text style={styles.specialtyName}>{specialty.name}</Text>
                 </TouchableOpacity>

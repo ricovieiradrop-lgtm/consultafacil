@@ -8,6 +8,7 @@ import {
   TextInput,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -25,6 +26,7 @@ import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
 import { useRouter } from 'expo-router';
 import { Service } from '@/types';
+import * as ImagePicker from 'expo-image-picker';
 
 type TabType = 'profile' | 'procedures' | 'schedule';
 
@@ -160,14 +162,82 @@ export default function DoctorDashboardScreen() {
     Alert.alert('Sucesso', 'Agenda configurada com sucesso!');
   };
 
-  const handleSelectPhoto = () => {
+  const handleSelectPhoto = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão Necessária',
+          'Precisamos de acesso à sua galeria para selecionar fotos.'
+        );
+        return;
+      }
+    }
+
     Alert.alert(
       'Foto de Perfil',
-      'Selecione uma foto quadrada (recomendado: 400x400px ou maior)',
+      'Selecione uma opção:',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Galeria', onPress: () => console.log('Open gallery') },
-        { text: 'Câmera', onPress: () => console.log('Open camera') },
+        {
+          text: 'Galeria',
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                const imageUri = result.assets[0].uri;
+                console.log('Selected image:', imageUri);
+                updateUser({ avatar: imageUri });
+                Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+              }
+            } catch (error) {
+              console.error('Error picking image:', error);
+              Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+            }
+          },
+        },
+        {
+          text: 'Câmera',
+          onPress: async () => {
+            if (Platform.OS === 'web') {
+              Alert.alert('Não disponível', 'Câmera não está disponível na web.');
+              return;
+            }
+
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert(
+                'Permissão Necessária',
+                'Precisamos de acesso à câmera para tirar fotos.'
+              );
+              return;
+            }
+
+            try {
+              const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                const imageUri = result.assets[0].uri;
+                console.log('Captured image:', imageUri);
+                updateUser({ avatar: imageUri });
+                Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+              }
+            } catch (error) {
+              console.error('Error taking photo:', error);
+              Alert.alert('Erro', 'Não foi possível tirar a foto.');
+            }
+          },
+        },
       ]
     );
   };
