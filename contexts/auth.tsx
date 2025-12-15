@@ -37,22 +37,21 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   useEffect(() => {
     console.log('🔐 Auth: Initializing...');
     
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔐 Auth: Session loaded', session ? '✅' : '❌');
-      if (session) {
-        handleSession(session);
-      } else {
-        setAuthState({
-          session: null,
-          user: null,
-          profile: null,
-          isLoading: false,
-          isOnboarding: false,
-        });
-      }
-    });
+    const session = supabase.auth.session();
+    console.log('🔐 Auth: Session loaded', session ? '✅' : '❌');
+    if (session) {
+      handleSession(session);
+    } else {
+      setAuthState({
+        session: null,
+        user: null,
+        profile: null,
+        isLoading: false,
+        isOnboarding: false,
+      });
+    }
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
+    const authListener = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Auth: State changed -', event);
         if (session) {
@@ -70,11 +69,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     );
 
     return () => {
-      authListener.subscription.unsubscribe();
+      authListener?.data?.unsubscribe();
     };
   }, []);
 
   const handleSession = async (session: Session) => {
+    if (!session.user) {
+      console.log('⚠️ Auth: No user in session');
+      return;
+    }
     console.log('🔐 Auth: Handling session for user', session.user.id);
     
     try {
@@ -118,7 +121,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const signInWithPhone = async (phone: string) => {
     console.log('📱 Auth: Sending OTP to', phone);
-    const { data, error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signIn({
       phone: phone,
     });
 
@@ -128,15 +131,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
 
     console.log('✅ Auth: OTP sent successfully');
-    return data;
+    return { phone };
   };
 
   const verifyOTP = async (phone: string, token: string) => {
     console.log('🔑 Auth: Verifying OTP for', phone);
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: phone,
-      token: token,
-      type: 'sms',
+    const { session, error, user } = await supabase.auth.verifyOTP({
+      phone,
+      token,
+      type: 'sms'
     });
 
     if (error) {
@@ -145,7 +148,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
 
     console.log('✅ Auth: OTP verified successfully');
-    return data;
+    return { session, user };
   };
 
   const completeProfile = async (profileData: {
