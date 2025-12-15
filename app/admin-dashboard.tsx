@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { doctors } from '@/mocks/doctors';
+import { useUser } from '@/contexts/user';
 
 const { width } = Dimensions.get('window');
 
@@ -100,6 +101,7 @@ const MOCK_APPOINTMENTS = [
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { updateUser } = useUser();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [periodFilter, setPeriodFilter] = useState<PeriodType>('month');
   const [showPeriodModal, setShowPeriodModal] = useState(false);
@@ -182,6 +184,26 @@ export default function AdminDashboard() {
             <Text style={styles.headerSubtitle}>
               Gestão completa do sistema
             </Text>
+            <View style={styles.testModeButtons}>
+              <TouchableOpacity
+                style={styles.testModeButton}
+                onPress={() => {
+                  updateUser({ type: 'patient' });
+                  router.back();
+                }}
+              >
+                <Text style={styles.testModeButtonText}>Modo Paciente</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.testModeButton, styles.testModeButtonDoctor]}
+                onPress={() => {
+                  updateUser({ type: 'doctor' });
+                  router.push('/doctor-dashboard' as any);
+                }}
+              >
+                <Text style={[styles.testModeButtonText, styles.testModeButtonTextDoctor]}>Modo Médico</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.headerIconContainer}>
             <LayoutDashboard size={24} color="#7C3AED" />
@@ -761,6 +783,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.textSecondary,
     marginTop: 2,
+    marginBottom: 8,
+  },
+  testModeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  testModeButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.primary,
+  },
+  testModeButtonDoctor: {
+    borderColor: Colors.light.primary,
+  },
+  testModeButtonText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.light.primary,
+  },
+  testModeButtonTextDoctor: {
+    color: Colors.light.primary,
   },
   headerIconContainer: {
     width: 48,

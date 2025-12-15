@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
+import { useAuth } from '@/contexts/auth';
 import { useRouter } from 'expo-router';
 
 const MENU_SECTIONS = [
@@ -47,6 +48,7 @@ const MENU_SECTIONS = [
 
 export default function ProfileScreen() {
   const { user, switchUserType, updateUser } = useUser();
+  const authContext = useAuth();
   const router = useRouter();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -128,9 +130,14 @@ export default function ProfileScreen() {
         {
           text: 'Sair',
           style: 'destructive',
-          onPress: () => {
-            console.log('User logged out');
-            Alert.alert('Até logo!', 'Você foi desconectado com sucesso.');
+          onPress: async () => {
+            console.log('🚪 User logging out');
+            if (authContext?.signOut) {
+              await authContext.signOut();
+            } else {
+              console.error('❌ Auth context not available');
+              Alert.alert('Erro', 'Não foi possível fazer logout.');
+            }
           },
         },
       ]

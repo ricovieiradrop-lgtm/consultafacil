@@ -738,7 +738,26 @@ export default function DoctorDashboardScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Dashboard Médico</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Dashboard Médico</Text>
+          <View style={styles.testModeButtons}>
+            <TouchableOpacity
+              style={styles.testModeButton}
+              onPress={() => {
+                updateUser({ type: 'patient' });
+                router.back();
+              }}
+            >
+              <Text style={styles.testModeButtonText}>Modo Paciente</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.testModeButton, styles.testModeButtonAdmin]}
+              onPress={() => router.push('/admin-dashboard' as any)}
+            >
+              <Text style={[styles.testModeButtonText, styles.testModeButtonTextAdmin]}>Admin</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
         <TouchableOpacity onPress={() => router.back()}>
           <X size={24} color={Colors.light.text} />
         </TouchableOpacity>
@@ -846,10 +865,37 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
+  headerTitleContainer: {
+    flex: 1,
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700' as const,
     color: Colors.light.text,
+    marginBottom: 8,
+  },
+  testModeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  testModeButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.primary,
+  },
+  testModeButtonAdmin: {
+    borderColor: '#7C3AED',
+  },
+  testModeButtonText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.light.primary,
+  },
+  testModeButtonTextAdmin: {
+    color: '#7C3AED',
   },
   tabs: {
     flexDirection: 'row',
