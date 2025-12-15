@@ -23,6 +23,7 @@ import {
   Check,
   CheckCircle2,
   AlertCircle,
+  FileText,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
@@ -787,7 +788,7 @@ export default function DoctorDashboardScreen() {
           style={[styles.tab, activeTab === 'procedures' && styles.tabActive]}
           onPress={() => setActiveTab('procedures')}
         >
-          <DollarSign
+          <FileText
             size={20}
             color={activeTab === 'procedures' ? Colors.light.primary : Colors.light.textSecondary}
           />
@@ -796,6 +797,7 @@ export default function DoctorDashboardScreen() {
               styles.tabText,
               activeTab === 'procedures' && styles.tabTextActive,
             ]}
+            numberOfLines={1}
           >
             Procedimentos
           </Text>
@@ -922,8 +924,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
     paddingVertical: 12,
+    paddingHorizontal: 4,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -931,9 +934,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.light.primary,
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: Colors.light.textSecondary,
+    flexShrink: 1,
   },
   tabTextActive: {
     color: Colors.light.primary,
