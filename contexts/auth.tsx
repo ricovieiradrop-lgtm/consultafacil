@@ -1,8 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Profile {
   id: string;
@@ -17,9 +16,14 @@ export interface Profile {
   created_at: string;
 }
 
+interface MockUser {
+  id: string;
+  phone: string;
+}
+
 interface AuthState {
-  session: Session | null;
-  user: SupabaseUser | null;
+  session: { user: MockUser } | null;
+  user: MockUser | null;
   profile: Profile | null;
   isLoading: boolean;
   isOnboarding: boolean;
@@ -35,13 +39,49 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   });
 
   useEffect(() => {
-    console.log('🔐 Auth: Initializing...');
-    
-    const session = supabase.auth.session();
-    console.log('🔐 Auth: Session loaded', session ? '✅' : '❌');
-    if (session) {
-      handleSession(session);
-    } else {
+    console.log('🔐 Auth: Initializing (MOCK MODE)...');
+    loadSession();
+  }, []);
+
+  const loadSession = async () => {
+    try {
+      const savedUser = await AsyncStorage.getItem('mock_user');
+      const savedProfile = await AsyncStorage.getItem('mock_profile');
+      
+      if (savedUser && savedProfile) {
+        const user = JSON.parse(savedUser);
+        const profile = JSON.parse(savedProfile);
+        
+        console.log('✅ Auth: Session restored', profile.full_name);
+        setAuthState({
+          session: { user },
+          user,
+          profile,
+          isLoading: false,
+          isOnboarding: false,
+        });
+      } else if (savedUser) {
+        const user = JSON.parse(savedUser);
+        console.log('⚠️ Auth: User found, needs profile');
+        setAuthState({
+          session: { user },
+          user,
+          profile: null,
+          isLoading: false,
+          isOnboarding: true,
+        });
+      } else {
+        console.log('❌ Auth: No session');
+        setAuthState({
+          session: null,
+          user: null,
+          profile: null,
+          isLoading: false,
+          isOnboarding: false,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Auth: Error loading session', error);
       setAuthState({
         session: null,
         user: null,
@@ -50,105 +90,43 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         isOnboarding: false,
       });
     }
-
-    const authListener = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔐 Auth: State changed -', event);
-        if (session) {
-          await handleSession(session);
-        } else {
-          setAuthState({
-            session: null,
-            user: null,
-            profile: null,
-            isLoading: false,
-            isOnboarding: false,
-          });
-        }
-      }
-    );
-
-    return () => {
-      authListener?.data?.unsubscribe();
-    };
-  }, []);
-
-  const handleSession = async (session: Session) => {
-    if (!session.user) {
-      console.log('⚠️ Auth: No user in session');
-      return;
-    }
-    console.log('🔐 Auth: Handling session for user', session.user.id);
-    
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error) {
-        console.log('⚠️ Auth: Profile not found, user needs onboarding');
-        setAuthState({
-          session,
-          user: session.user,
-          profile: null,
-          isLoading: false,
-          isOnboarding: true,
-        });
-        return;
-      }
-
-      console.log('✅ Auth: Profile loaded', profile.full_name);
-      setAuthState({
-        session,
-        user: session.user,
-        profile: profile as Profile,
-        isLoading: false,
-        isOnboarding: false,
-      });
-    } catch (error) {
-      console.error('❌ Auth: Error loading profile', error);
-      setAuthState({
-        session,
-        user: session.user,
-        profile: null,
-        isLoading: false,
-        isOnboarding: true,
-      });
-    }
   };
 
+
+
   const signInWithPhone = async (phone: string) => {
-    console.log('📱 Auth: Sending OTP to', phone);
-    const { error } = await supabase.auth.signIn({
-      phone: phone,
-    });
-
-    if (error) {
-      console.error('❌ Auth: Error sending OTP', error);
-      throw error;
-    }
-
-    console.log('✅ Auth: OTP sent successfully');
+    console.log('📱 Auth (MOCK): Simulating OTP send to', phone);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('✅ Auth (MOCK): OTP "sent" successfully');
     return { phone };
   };
 
   const verifyOTP = async (phone: string, token: string) => {
-    console.log('🔑 Auth: Verifying OTP for', phone);
-    const { session, error, user } = await supabase.auth.verifyOTP({
-      phone,
-      token,
-      type: 'sms'
-    });
-
-    if (error) {
-      console.error('❌ Auth: Error verifying OTP', error);
-      throw error;
+    console.log('🔑 Auth (MOCK): Verifying OTP for', phone, 'with code', token);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (token !== '123456' && token.length === 6) {
+      console.log('✅ Auth (MOCK): Any 6-digit code accepted');
+    } else if (token !== '123456') {
+      throw new Error('Código inválido');
     }
 
-    console.log('✅ Auth: OTP verified successfully');
-    return { session, user };
+    const mockUser: MockUser = {
+      id: `user_${Date.now()}`,
+      phone,
+    };
+
+    await AsyncStorage.setItem('mock_user', JSON.stringify(mockUser));
+    
+    setAuthState(prev => ({
+      ...prev,
+      session: { user: mockUser },
+      user: mockUser,
+      isOnboarding: true,
+    }));
+
+    console.log('✅ Auth (MOCK): OTP verified, user created');
+    return { session: { user: mockUser }, user: mockUser };
   };
 
   const completeProfile = async (profileData: {
@@ -159,66 +137,58 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       throw new Error('Usuário não autenticado');
     }
 
-    console.log('👤 Auth: Completing profile for', authState.user.id);
+    console.log('👤 Auth (MOCK): Completing profile for', authState.user.id);
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: authState.user.id,
-        full_name: profileData.full_name,
-        cpf: profileData.cpf,
-        phone: authState.user.phone || '',
-        role: 'patient',
-      })
-      .select()
-      .single();
+    const profile: Profile = {
+      id: authState.user.id,
+      full_name: profileData.full_name,
+      cpf: profileData.cpf,
+      phone: authState.user.phone,
+      role: 'patient',
+      created_at: new Date().toISOString(),
+    };
 
-    if (error) {
-      console.error('❌ Auth: Error completing profile', error);
-      throw error;
-    }
+    await AsyncStorage.setItem('mock_profile', JSON.stringify(profile));
 
-    console.log('✅ Auth: Profile completed');
+    console.log('✅ Auth (MOCK): Profile completed');
     setAuthState(prev => ({
       ...prev,
-      profile: data as Profile,
+      profile,
       isOnboarding: false,
     }));
 
-    return data;
+    return profile;
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
-    if (!authState.user) {
+    if (!authState.user || !authState.profile) {
       throw new Error('Usuário não autenticado');
     }
 
-    console.log('📝 Auth: Updating profile');
+    console.log('📝 Auth (MOCK): Updating profile');
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', authState.user.id)
-      .select()
-      .single();
+    const updatedProfile = {
+      ...authState.profile,
+      ...updates,
+    };
 
-    if (error) {
-      console.error('❌ Auth: Error updating profile', error);
-      throw error;
-    }
+    await AsyncStorage.setItem('mock_profile', JSON.stringify(updatedProfile));
 
-    console.log('✅ Auth: Profile updated');
+    console.log('✅ Auth (MOCK): Profile updated');
     setAuthState(prev => ({
       ...prev,
-      profile: data as Profile,
+      profile: updatedProfile,
     }));
 
-    return data;
+    return updatedProfile;
   };
 
   const signOut = async () => {
-    console.log('🚪 Auth: Signing out');
-    await supabase.auth.signOut();
+    console.log('🚪 Auth (MOCK): Signing out');
+    await AsyncStorage.removeItem('mock_user');
+    await AsyncStorage.removeItem('mock_profile');
     setAuthState({
       session: null,
       user: null,
