@@ -43,7 +43,22 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('⚠️ Auth: User authenticated but no profile found (PGRST116)');
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          setAuthState({
+            session,
+            user: session?.user || null,
+            profile: null,
+            isLoading: false,
+            isOnboarding: true,
+          });
+          return;
+        }
+        throw error;
+      }
 
       if (profile) {
         console.log('✅ Auth: Profile loaded', profile.full_name, profile.role);
@@ -68,7 +83,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           isOnboarding: true,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Auth: Error loading profile', error);
       const { data: { session } } = await supabase.auth.getSession();
       
