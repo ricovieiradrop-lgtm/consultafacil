@@ -29,7 +29,7 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
-import { useDoctors, useSpecialties, useInviteDoctor } from '@/lib/supabase-hooks';
+import { useDoctors, useInviteDoctor } from '@/lib/supabase-hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -110,22 +110,13 @@ export default function AdminDashboard() {
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
   
   const { data: doctorsData } = useDoctors();
-  const { data: specialtiesData } = useSpecialties();
   const inviteDoctorMutation = useInviteDoctor();
   
   const doctors = doctorsData || [];
-  const specialties = specialtiesData || [];
   
   const [doctorForm, setDoctorForm] = useState({
     name: '',
-    email: '',
     phone: '',
-    crm: '',
-    specialtyId: '',
-    bio: '',
-    location: '',
-    city: '',
-    state: '',
   });
 
   const filteredAppointments = selectedDoctor
@@ -143,21 +134,14 @@ export default function AdminDashboard() {
   const handleAddDoctor = () => {
     setDoctorForm({
       name: '',
-      email: '',
       phone: '',
-      crm: '',
-      specialtyId: '',
-      bio: '',
-      location: '',
-      city: '',
-      state: '',
     });
     setShowAddDoctorModal(true);
   };
   
   const handleSaveDoctor = async () => {
-    if (!doctorForm.name || !doctorForm.phone || !doctorForm.crm || !doctorForm.specialtyId) {
-      Alert.alert('Erro', 'Preencha todos os campos obrigatórios (Nome, Telefone, CRM, Especialidade)');
+    if (!doctorForm.name || !doctorForm.phone) {
+      Alert.alert('Erro', 'Preencha nome e telefone');
       return;
     }
     
@@ -169,25 +153,18 @@ export default function AdminDashboard() {
     try {
       await inviteDoctorMutation.mutateAsync({
         name: doctorForm.name,
-        email: doctorForm.email,
         phone: doctorForm.phone,
-        crm: doctorForm.crm,
-        specialtyId: doctorForm.specialtyId,
-        bio: doctorForm.bio,
-        location: doctorForm.location,
-        city: doctorForm.city,
-        state: doctorForm.state,
       });
       
       setShowAddDoctorModal(false);
       Alert.alert(
-        'Instrução',
-        'Peça para o médico fazer login usando o telefone ' + doctorForm.phone + '. Depois você poderá editar o perfil dele aqui no dashboard admin.'
+        'Médico Cadastrado',
+        'Peça para ' + doctorForm.name + ' fazer login usando o telefone ' + doctorForm.phone + '. Ele poderá completar o perfil no dashboard dele.'
       );
     } catch (error: any) {
-      console.error('Error inviting doctor:', error);
+      console.error('Error adding doctor:', error);
       const errorMessage = error?.message || JSON.stringify(error);
-      Alert.alert('Erro ao convidar médico', errorMessage);
+      Alert.alert('Erro ao adicionar médico', errorMessage);
     }
   };
 
@@ -828,6 +805,10 @@ export default function AdminDashboard() {
               </View>
 
               <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
+                <Text style={styles.formDescription}>
+                  Cadastre apenas o nome e telefone do médico. Ele completará o perfil (CRM, especialidade, foto, etc.) após fazer login.
+                </Text>
+
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Nome Completo *</Text>
                   <TextInput
@@ -848,103 +829,8 @@ export default function AdminDashboard() {
                     keyboardType="phone-pad"
                   />
                   <Text style={styles.formHint}>
-                    Um SMS será enviado para este número com o código de acesso
+                    O médico usará este número para fazer login e completar o cadastro
                   </Text>
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Email (opcional)</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="joao@example.com"
-                    value={doctorForm.email}
-                    onChangeText={(text) => setDoctorForm({ ...doctorForm, email: text })}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>CRM *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="CRM/SP 123456"
-                    value={doctorForm.crm}
-                    onChangeText={(text) => setDoctorForm({ ...doctorForm, crm: text })}
-                  />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Especialidade *</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={styles.specialtyChips}>
-                      {specialties.map((specialty) => (
-                        <TouchableOpacity
-                          key={specialty.id}
-                          style={[
-                            styles.specialtyChip,
-                            doctorForm.specialtyId === specialty.id && styles.specialtyChipActive,
-                          ]}
-                          onPress={() => setDoctorForm({ ...doctorForm, specialtyId: specialty.id })}
-                        >
-                          <Text
-                            style={[
-                              styles.specialtyChipText,
-                              doctorForm.specialtyId === specialty.id && styles.specialtyChipTextActive,
-                            ]}
-                          >
-                            {specialty.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Bio</Text>
-                  <TextInput
-                    style={[styles.formInput, styles.formTextArea]}
-                    placeholder="Breve descrição profissional"
-                    value={doctorForm.bio}
-                    onChangeText={(text) => setDoctorForm({ ...doctorForm, bio: text })}
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Endereço</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="Rua, número - Bairro"
-                    value={doctorForm.location}
-                    onChangeText={(text) => setDoctorForm({ ...doctorForm, location: text })}
-                  />
-                </View>
-
-                <View style={styles.formRow}>
-                  <View style={[styles.formGroup, styles.formGroupHalf]}>
-                    <Text style={styles.formLabel}>Cidade</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      placeholder="São Paulo"
-                      value={doctorForm.city}
-                      onChangeText={(text) => setDoctorForm({ ...doctorForm, city: text })}
-                    />
-                  </View>
-
-                  <View style={[styles.formGroup, styles.formGroupHalf]}>
-                    <Text style={styles.formLabel}>Estado</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      placeholder="SP"
-                      value={doctorForm.state}
-                      onChangeText={(text) => setDoctorForm({ ...doctorForm, state: text })}
-                      maxLength={2}
-                      autoCapitalize="characters"
-                    />
-                  </View>
                 </View>
               </ScrollView>
 
@@ -961,7 +847,7 @@ export default function AdminDashboard() {
                   disabled={inviteDoctorMutation.isPending}
                 >
                   <Text style={styles.formButtonText}>
-                    {inviteDoctorMutation.isPending ? 'Enviando...' : 'Enviar Convite'}
+                    {inviteDoctorMutation.isPending ? 'Cadastrando...' : 'Cadastrar Médico'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1587,6 +1473,17 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 6,
     lineHeight: 16,
+  },
+  formDescription: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    lineHeight: 20,
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: Colors.light.background,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.primary,
   },
   formTextArea: {
     height: 100,

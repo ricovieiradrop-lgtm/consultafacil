@@ -359,21 +359,41 @@ export function useInviteDoctor() {
   return useMutation({
     mutationFn: async (doctor: {
       name: string;
-      email: string;
       phone: string;
-      crm: string;
-      specialtyId: string;
-      bio: string;
-      location?: string;
-      city?: string;
-      state?: string;
     }) => {
-      console.log('Creating doctor invite:', doctor);
+      console.log('Creating doctor with basic info:', doctor);
       
-      throw new Error(
-        'Para adicionar um médico, peça para ele fazer login primeiro usando o telefone ' + doctor.phone + 
-        '. Depois você poderá editar o perfil dele e adicionar CRM, especialidade e outros dados.'
-      );
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          phone: doctor.phone,
+          full_name: doctor.name,
+          role: 'doctor',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          throw new Error('Este telefone já está cadastrado no sistema');
+        }
+        throw error;
+      }
+
+      const { error: doctorError } = await supabase
+        .from('doctors')
+        .insert({
+          id: data.id,
+          crm: '',
+          bio: '',
+        });
+
+      if (doctorError) {
+        await supabase.from('profiles').delete().eq('id', data.id);
+        throw doctorError;
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctors'] });
