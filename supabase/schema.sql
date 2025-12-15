@@ -14,7 +14,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL,
-  cpf TEXT NOT NULL UNIQUE, -- NUNCA expor em queries públicas
+  cpf TEXT NOT NULL UNIQUE,
   phone TEXT NOT NULL UNIQUE,
   avatar_url TEXT,
   role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'admin')) DEFAULT 'patient',
@@ -62,7 +62,7 @@ CREATE TABLE services (
   name TEXT NOT NULL,
   description TEXT,
   price DECIMAL(10,2) NOT NULL,
-  duration INTEGER NOT NULL, -- em minutos
+  duration INTEGER NOT NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -144,19 +144,18 @@ CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON appointments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
--- FUNCTION: Verificar role do usuário (bypass RLS)
+-- FUNCTION: Verificar role do usuário (CORRIGIDO - schema public)
 -- ============================================================
-CREATE OR REPLACE FUNCTION auth.user_role()
-RETURNS TEXT AS $
+CREATE OR REPLACE FUNCTION public.user_role()
+RETURNS TEXT AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid()
-$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- ============================================================
 -- FUNCTION: Criar profile automaticamente ao criar usuário
--- Este trigger é executado quando um novo usuário é criado no auth.users
 -- ============================================================
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, full_name, phone, cpf, role)
   VALUES (
@@ -168,9 +167,8 @@ BEGIN
   );
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger para criar profile automaticamente
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
@@ -179,7 +177,6 @@ CREATE TRIGGER on_auth_user_created
 -- VIEWS: Queries otimizadas e seguras
 -- ============================================================
 
--- View: Listagem pública de médicos (SEM CPF)
 CREATE OR REPLACE VIEW doctor_listings AS
 SELECT 
   d.id,
@@ -202,7 +199,6 @@ JOIN profiles p ON d.id = p.id
 LEFT JOIN specialties s ON d.specialty_id = s.id
 WHERE d.is_active = true AND p.role = 'doctor';
 
--- View: Detalhes de consultas (SEM CPF do paciente)
 CREATE OR REPLACE VIEW appointment_details AS
 SELECT 
   a.id,
@@ -234,7 +230,7 @@ JOIN profiles pp ON a.patient_id = pp.id
 LEFT JOIN services srv ON a.service_id = srv.id;
 
 -- ============================================================
--- ROW LEVEL SECURITY (RLS) - RIGOROSO
+-- ROW LEVEL SECURITY (RLS)
 -- ============================================================
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -248,19 +244,15 @@ ALTER TABLE specialties ENABLE ROW LEVEL SECURITY;
 -- POLICIES: profiles
 -- ============================================================
 
--- Usuário pode ler apenas seu próprio profile
 CREATE POLICY "Users can read own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
--- Usuário pode atualizar apenas seu próprio profile
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
--- Médicos podem ler dados básicos de seus pacientes (SEM CPF)
--- Esta policy é implementada via function segura
 CREATE POLICY "Doctors can read their patients basic info"
   ON profiles FOR SELECT
   USING (
@@ -272,22 +264,18 @@ CREATE POLICY "Doctors can read their patients basic info"
     )
   );
 
--- Admin pode ler todos os profiles (COM CPF)
 CREATE POLICY "Admin can read all profiles"
   ON profiles FOR SELECT
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
--- Admin pode atualizar qualquer profile
 CREATE POLICY "Admin can update all profiles"
   ON profiles FOR UPDATE
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
--- Admin pode inserir novos profiles (para criar médicos)
 CREATE POLICY "Admin can insert profiles"
   ON profiles FOR INSERT
-  WITH CHECK (auth.user_role() = 'admin');
+  WITH CHECK (public.user_role() = 'admin');
 
--- Usuários podem criar seu próprio profile na primeira vez
 CREATE POLICY "Users can insert own profile"
   ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
@@ -296,114 +284,97 @@ CREATE POLICY "Users can insert own profile"
 -- POLICIES: doctors
 -- ============================================================
 
--- Todos podem ler médicos ativos (informações públicas)
 CREATE POLICY "Public can read active doctors"
   ON doctors FOR SELECT
   USING (is_active = true);
 
--- Médico pode atualizar seu próprio perfil
 CREATE POLICY "Doctors can update own profile"
   ON doctors FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
--- Admin pode fazer tudo com doctors
 CREATE POLICY "Admin can manage doctors"
   ON doctors FOR ALL
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: services
 -- ============================================================
 
--- Todos podem ler serviços ativos
 CREATE POLICY "Public can read active services"
   ON services FOR SELECT
   USING (is_active = true);
 
--- Médico pode gerenciar seus próprios serviços
 CREATE POLICY "Doctors can manage own services"
   ON services FOR ALL
   USING (doctor_id = auth.uid())
   WITH CHECK (doctor_id = auth.uid());
 
--- Admin pode gerenciar todos os serviços
 CREATE POLICY "Admin can manage all services"
   ON services FOR ALL
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: appointments
 -- ============================================================
 
--- Paciente pode ler suas próprias consultas
 CREATE POLICY "Patients can read own appointments"
   ON appointments FOR SELECT
   USING (patient_id = auth.uid());
 
--- Médico pode ler suas próprias consultas
 CREATE POLICY "Doctors can read own appointments"
   ON appointments FOR SELECT
   USING (doctor_id = auth.uid());
 
--- Paciente pode criar consultas (apenas como patient_id)
 CREATE POLICY "Patients can create appointments"
   ON appointments FOR INSERT
   WITH CHECK (
     patient_id = auth.uid() AND
-    auth.user_role() = 'patient'
+    public.user_role() = 'patient'
   );
 
--- Paciente pode cancelar suas próprias consultas
 CREATE POLICY "Patients can cancel own appointments"
   ON appointments FOR UPDATE
   USING (patient_id = auth.uid() AND status = 'scheduled')
   WITH CHECK (patient_id = auth.uid() AND status = 'cancelled');
 
--- Médico pode atualizar status das suas consultas
 CREATE POLICY "Doctors can update own appointments status"
   ON appointments FOR UPDATE
   USING (doctor_id = auth.uid())
   WITH CHECK (doctor_id = auth.uid());
 
--- Admin pode gerenciar todas as consultas
 CREATE POLICY "Admin can manage all appointments"
   ON appointments FOR ALL
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: doctor_availability
 -- ============================================================
 
--- Todos podem ler disponibilidade ativa
 CREATE POLICY "Public can read active availability"
   ON doctor_availability FOR SELECT
   USING (is_active = true);
 
--- Médico pode gerenciar sua própria disponibilidade
 CREATE POLICY "Doctors can manage own availability"
   ON doctor_availability FOR ALL
   USING (doctor_id = auth.uid())
   WITH CHECK (doctor_id = auth.uid());
 
--- Admin pode gerenciar toda disponibilidade
 CREATE POLICY "Admin can manage all availability"
   ON doctor_availability FOR ALL
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
 -- ============================================================
 -- POLICIES: specialties
 -- ============================================================
 
--- Todos podem ler especialidades (público)
 CREATE POLICY "Public can read specialties"
   ON specialties FOR SELECT
   USING (true);
 
--- Admin pode gerenciar especialidades
 CREATE POLICY "Admin can manage specialties"
   ON specialties FOR ALL
-  USING (auth.user_role() = 'admin');
+  USING (public.user_role() = 'admin');
 
 -- ============================================================
 -- DADOS INICIAIS: Especialidades
@@ -419,7 +390,6 @@ ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
 -- FUNCTION SEGURA: Obter dados do paciente sem CPF
--- Médicos podem chamar esta function para ver dados básicos
 -- ============================================================
 CREATE OR REPLACE FUNCTION get_patient_safe_info(patient_uuid UUID)
 RETURNS TABLE (
@@ -429,7 +399,6 @@ RETURNS TABLE (
   avatar_url TEXT
 ) AS $$
 BEGIN
-  -- Verificar se quem chama é médico e tem consulta com o paciente
   IF NOT EXISTS (
     SELECT 1 FROM appointments a
     WHERE a.doctor_id = auth.uid()
@@ -444,29 +413,3 @@ BEGIN
   WHERE p.id = patient_uuid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ============================================================
--- OBSERVAÇÕES DE SEGURANÇA E LGPD
--- ============================================================
--- 
--- ✅ CPF nunca é exposto em views públicas
--- ✅ CPF só é acessível pelo próprio usuário ou admin
--- ✅ Médicos NUNCA têm acesso ao CPF dos pacientes
--- ✅ Todas as queries respeitam auth.uid()
--- ✅ RLS ativado em todas as tabelas sensíveis
--- ✅ Policies impedem acesso não autorizado
--- ✅ Functions com SECURITY DEFINER para operações especiais
--- ✅ Trigger automático para criar profile ao registrar usuário
--- ✅ Índices para performance em queries autenticadas
--- 
--- 🔒 PONTOS CRÍTICOS:
--- 1. NUNCA desabilitar RLS em produção
--- 2. SEMPRE usar auth.uid() nas policies
--- 3. Validar CPF no frontend antes de enviar
--- 4. Implementar rate limiting no Supabase Edge Functions
--- 5. Monitorar logs de acesso ao CPF
--- 6. Implementar soft delete para LGPD (right to be forgotten)
--- 7. Criptografar backups do banco
--- 8. Habilitar 2FA para contas admin
--- 
--- ============================================================
