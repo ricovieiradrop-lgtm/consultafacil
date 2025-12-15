@@ -8,7 +8,7 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#4F46E5', '#7C3AED', '#EC4899']}
+        colors={['#2D9A8C', '#238276', '#1D6B61']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -96,14 +96,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 48,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     color: '#FFFFFF',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 18,
     color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
+    fontWeight: '500' as const,
   },
   featuresContainer: {
     gap: 20,
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#FFFFFF',
-    fontWeight: '500',
+    fontWeight: '500' as const,
     lineHeight: 24,
   },
   buttonContainer: {
@@ -142,8 +142,8 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#4F46E5',
+    fontWeight: '700' as const,
+    color: '#2D9A8C',
   },
   terms: {
     fontSize: 13,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   termsLink: {
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+    fontWeight: '600' as const,
+    textDecorationLine: 'underline' as const,
   },
 });
