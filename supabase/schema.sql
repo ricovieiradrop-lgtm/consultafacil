@@ -397,7 +397,7 @@ RETURNS TABLE (
   full_name TEXT,
   phone TEXT,
   avatar_url TEXT
-) AS $$
+) AS $
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM appointments a
@@ -412,4 +412,56 @@ BEGIN
   FROM profiles p
   WHERE p.id = patient_uuid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- FUNCTION: Admin cadastra médico (invitação)
+-- ============================================================
+CREATE OR REPLACE FUNCTION admin_invite_doctor(
+  p_phone TEXT,
+  p_name TEXT
+)
+RETURNS UUID AS $
+DECLARE
+  v_user_id UUID;
+  v_existing_user UUID;
+BEGIN
+  IF public.user_role() != 'admin' THEN
+    RAISE EXCEPTION 'Apenas admins podem convidar médicos';
+  END IF;
+
+  SELECT id INTO v_existing_user
+  FROM auth.users
+  WHERE phone = p_phone;
+
+  IF v_existing_user IS NOT NULL THEN
+    SELECT id INTO v_existing_user
+    FROM profiles
+    WHERE phone = p_phone;
+    
+    IF v_existing_user IS NOT NULL THEN
+      RAISE EXCEPTION 'Este telefone já está cadastrado no sistema';
+    END IF;
+  END IF;
+
+  INSERT INTO profiles (id, full_name, phone, cpf, role)
+  VALUES (
+    uuid_generate_v4(),
+    p_name,
+    p_phone,
+    'PENDENTE',
+    'doctor'
+  )
+  RETURNING id INTO v_user_id;
+
+  INSERT INTO doctors (id, crm, bio, is_active)
+  VALUES (v_user_id, 'PENDENTE', '', true);
+
+  RETURN v_user_id;
+EXCEPTION
+  WHEN unique_violation THEN
+    RAISE EXCEPTION 'Este telefone já está cadastrado no sistema';
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -363,34 +363,14 @@ export function useInviteDoctor() {
     }) => {
       console.log('Creating doctor with basic info:', doctor);
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert({
-          phone: doctor.phone,
-          full_name: doctor.name,
-          role: 'doctor',
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('admin_invite_doctor', {
+        p_phone: doctor.phone,
+        p_name: doctor.name,
+      });
 
       if (error) {
-        if (error.code === '23505') {
-          throw new Error('Este telefone já está cadastrado no sistema');
-        }
-        throw error;
-      }
-
-      const { error: doctorError } = await supabase
-        .from('doctors')
-        .insert({
-          id: data.id,
-          crm: '',
-          bio: '',
-        });
-
-      if (doctorError) {
-        await supabase.from('profiles').delete().eq('id', data.id);
-        throw doctorError;
+        console.error('Error inviting doctor:', error);
+        throw new Error(error.message || 'Erro ao cadastrar médico');
       }
 
       return data;
