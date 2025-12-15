@@ -48,13 +48,13 @@ export default function PhoneLoginScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#4F46E5', '#7C3AED']}
+        colors={['#2D9A8C', '#238276']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
       
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -212,6 +212,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#2D9A8C',
   },
 });

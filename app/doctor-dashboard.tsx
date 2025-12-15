@@ -738,7 +738,10 @@ export default function DoctorDashboardScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <View style={styles.headerTitleContainer}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <X size={24} color={Colors.light.text} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Dashboard Médico</Text>
           <View style={styles.testModeButtons}>
             <TouchableOpacity
@@ -758,9 +761,7 @@ export default function DoctorDashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        <TouchableOpacity onPress={() => router.back()}>
-          <X size={24} color={Colors.light.text} />
-        </TouchableOpacity>
+        <View style={styles.headerRight} />
       </View>
 
       <View style={styles.tabs}>
@@ -858,25 +859,36 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
     backgroundColor: Colors.light.card,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
-  headerTitleContainer: {
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
+  },
+  headerRight: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700' as const,
     color: Colors.light.text,
     marginBottom: 8,
+    textAlign: 'center' as const,
   },
   testModeButtons: {
     flexDirection: 'row',
     gap: 8,
+    justifyContent: 'center',
   },
   testModeButton: {
     paddingVertical: 4,

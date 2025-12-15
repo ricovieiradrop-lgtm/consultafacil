@@ -234,6 +234,9 @@ export default function AdminDashboard() {
             <ArrowLeft size={24} color={Colors.light.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
+            <View style={styles.headerIconContainer}>
+              <LayoutDashboard size={24} color="#7C3AED" />
+            </View>
             <Text style={styles.headerTitle}>Dashboard Admin</Text>
             <Text style={styles.headerSubtitle}>
               Gestão completa do sistema
@@ -259,9 +262,7 @@ export default function AdminDashboard() {
               </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.headerIconContainer}>
-            <LayoutDashboard size={24} color="#7C3AED" />
-          </View>
+          <View style={styles.headerRight} />
         </View>
 
         <View style={styles.tabsContainer}>
@@ -972,33 +973,37 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
-    gap: 12,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.light.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerContent: {
     flex: 1,
+    alignItems: 'center',
+  },
+  headerRight: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700' as const,
     color: Colors.light.text,
+    textAlign: 'center' as const,
   },
   headerSubtitle: {
     fontSize: 13,
     color: Colors.light.textSecondary,
     marginTop: 2,
     marginBottom: 8,
+    textAlign: 'center' as const,
   },
   testModeButtons: {
     flexDirection: 'row',
     gap: 8,
+    justifyContent: 'center',
   },
   testModeButton: {
     paddingVertical: 4,
@@ -1026,6 +1031,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
   tabsContainer: {
     backgroundColor: Colors.light.card,

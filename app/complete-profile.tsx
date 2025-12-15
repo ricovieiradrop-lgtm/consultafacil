@@ -75,13 +75,13 @@ export default function CompleteProfileScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#4F46E5', '#7C3AED']}
+        colors={['#2D9A8C', '#238276']}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
       
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -153,7 +153,7 @@ export default function CompleteProfileScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
-                      {acceptedTerms && <CheckSquare size={20} color="#4F46E5" />}
+                      {acceptedTerms && <CheckSquare size={20} color="#2D9A8C" />}
                     </View>
                     <Text style={styles.checkboxText}>
                       Aceito os{' '}
@@ -301,6 +301,9 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: '#FFFFFF',
   },
+  checkboxCheckedIcon: {
+    color: '#2D9A8C',
+  },
   checkboxText: {
     flex: 1,
     fontSize: 14,
@@ -347,6 +350,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#2D9A8C',
   },
 });
