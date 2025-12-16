@@ -33,13 +33,9 @@ const TIME_SLOTS = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
 ];
 
-export default function BookingModal() {
+export default function BookingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-
-  const doctorId = params.doctorId as string;
-  const serviceId = params.serviceId as string;
-  const price = Number(params.price);
+  const { doctorId, serviceId, price } = useLocalSearchParams();
 
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 0, 1));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -47,23 +43,33 @@ export default function BookingModal() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // 🔒 Blindagem: se veio sem contexto, não continua
+  if (!doctorId || !serviceId || !price) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <Text style={styles.errorTitle}>Médico não encontrado</Text>
+        <Text style={styles.errorText}>
+          Volte e selecione um médico válido para agendar.
+        </Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    const startWeekDay = firstDay.getDay();
 
-    const days: {
-      date: string;
-      day: number;
-      isCurrentMonth: boolean;
-      isAvailable: boolean;
-    }[] = [];
+    const days = [];
 
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push({ date: '', day: 0, isCurrentMonth: false, isAvailable: false });
+    for (let i = 0; i < startWeekDay; i++) {
+      days.push({ date: '', day: 0, available: false });
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -71,8 +77,7 @@ export default function BookingModal() {
       days.push({
         date: dateStr,
         day,
-        isCurrentMonth: true,
-        isAvailable: AVAILABLE_DATES.includes(dateStr),
+        available: AVAILABLE_DATES.includes(dateStr),
       });
     }
 
@@ -80,43 +85,39 @@ export default function BookingModal() {
   }, [currentMonth]);
 
   const handleConfirmBooking = async () => {
-    try {
-      setLoading(true);
+    if (!selectedDate || !selectedTime) return;
 
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) {
-        throw new Error('Usuário não autenticado');
-      }
+    setLoading(true);
 
-      const patientId = userData.user.id;
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-      const { error } = await supabase.from('appointments').insert({
-        doctor_id: doctorId,
-        patient_id: patientId,
-        service_id: serviceId,
-        appointment_date: selectedDate,
-        appointment_time: selectedTime,
-        price,
-        status: 'scheduled',
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      setShowSuccess(true);
-      setTimeout(() => {
-        router.back();
-      }, 2000);
-
-    } catch (err: any) {
-      Alert.alert(
-        'Erro ao agendar',
-        err.message || 'Não foi possível concluir o agendamento'
-      );
-    } finally {
+    if (authError || !user) {
+      Alert.alert('Erro', 'Usuário não autenticado');
       setLoading(false);
+      return;
     }
+
+    const { error } = await supabase.from('appointments').insert({
+      doctor_id: doctorId,
+      patient_id: user.id,
+      service_id: serviceId,
+      appointment_date: selectedDate,
+      appointment_time: selectedTime,
+      price: Number(price),
+    });
+
+    if (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Não foi possível agendar a consulta');
+      setLoading(false);
+      return;
+    }
+
+    setShowSuccess(true);
+    setTimeout(() => router.replace('/(tabs)/appointments'), 2000);
   };
 
   if (showSuccess) {
@@ -127,7 +128,7 @@ export default function BookingModal() {
             <CheckCircle size={64} color={Colors.light.success} />
             <Text style={styles.successTitle}>Consulta Agendada!</Text>
             <Text style={styles.successText}>
-              O médico receberá a solicitação.
+              Você pode acompanhar em “Minhas Consultas”.
             </Text>
           </View>
         </View>
@@ -142,83 +143,69 @@ export default function BookingModal() {
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Agendar Consulta</Text>
             <TouchableOpacity onPress={() => router.back()}>
-              <X size={24} />
+              <X size={24} color={Colors.light.text} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content}>
-            {/* CALENDÁRIO */}
-            <View style={styles.section}>
-              <View style={styles.monthHeader}>
-                <TouchableOpacity onPress={() => setCurrentMonth(
-                  new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1)
-                )}>
-                  <ChevronLeft />
-                </TouchableOpacity>
+          <ScrollView>
+            <View style={styles.monthHeader}>
+              <TouchableOpacity onPress={() =>
+                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
+              }>
+                <ChevronLeft size={24} />
+              </TouchableOpacity>
 
-                <Text style={styles.monthTitle}>
-                  {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                </Text>
+              <Text style={styles.monthTitle}>
+                {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+              </Text>
 
-                <TouchableOpacity onPress={() => setCurrentMonth(
-                  new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1)
-                )}>
-                  <ChevronRight />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.calendarGrid}>
-                {calendarDays.map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    disabled={!item.isAvailable}
-                    style={[
-                      styles.calendarCell,
-                      item.isAvailable && styles.available,
-                      selectedDate === item.date && styles.selected,
-                    ]}
-                    onPress={() => {
-                      setSelectedDate(item.date);
-                      setSelectedTime(null);
-                    }}
-                  >
-                    <Text>{item.day || ''}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity onPress={() =>
+                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
+              }>
+                <ChevronRight size={24} />
+              </TouchableOpacity>
             </View>
 
-            {/* HORÁRIOS */}
+            <View style={styles.calendarGrid}>
+              {calendarDays.map((d, i) => (
+                <TouchableOpacity
+                  key={i}
+                  disabled={!d.available}
+                  style={[
+                    styles.calendarCell,
+                    selectedDate === d.date && styles.selectedCell,
+                  ]}
+                  onPress={() => setSelectedDate(d.date)}
+                >
+                  <Text>{d.day || ''}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             {selectedDate && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Horários</Text>
-                <View style={styles.timeSlots}>
-                  {TIME_SLOTS.map((time) => (
-                    <TouchableOpacity
-                      key={time}
-                      style={[
-                        styles.timeSlot,
-                        selectedTime === time && styles.timeSlotActive,
-                      ]}
-                      onPress={() => setSelectedTime(time)}
-                    >
-                      <Text>{time}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+              <View style={styles.timeGrid}>
+                {TIME_SLOTS.map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setSelectedTime(t)}
+                    style={[
+                      styles.timeSlot,
+                      selectedTime === t && styles.timeSlotActive,
+                    ]}
+                  >
+                    <Text>{t}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
           </ScrollView>
 
           <TouchableOpacity
-            style={[
-              styles.confirmBtn,
-              (!selectedDate || !selectedTime || loading) && styles.disabled,
-            ]}
             disabled={!selectedDate || !selectedTime || loading}
             onPress={handleConfirmBooking}
+            style={styles.confirmBtn}
           >
-            <Text style={styles.confirmText}>
+            <Text style={styles.confirmBtnText}>
               {loading ? 'Agendando...' : 'Confirmar Agendamento'}
             </Text>
           </TouchableOpacity>
@@ -228,29 +215,85 @@ export default function BookingModal() {
   );
 }
 
-/* estilos mantidos */
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: height * 0.9 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20 },
+  modalContainer: {
+    backgroundColor: Colors.light.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: height * 0.9,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
   headerTitle: { fontSize: 20, fontWeight: '700' },
-  content: { paddingHorizontal: 20 },
-  section: { marginBottom: 24 },
-  monthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  monthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+  },
   monthTitle: { fontSize: 18, fontWeight: '700' },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calendarCell: { width: '14.28%', padding: 10, alignItems: 'center' },
-  available: { backgroundColor: '#eee', borderRadius: 8 },
-  selected: { backgroundColor: Colors.light.primary },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  timeSlots: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  timeSlot: { padding: 12, borderRadius: 8, borderWidth: 1 },
-  timeSlotActive: { backgroundColor: Colors.light.primary },
-  confirmBtn: { padding: 18, backgroundColor: Colors.light.primary, alignItems: 'center' },
-  disabled: { backgroundColor: '#ccc' },
-  confirmText: { color: '#fff', fontWeight: '700' },
-  successOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  successCard: { backgroundColor: '#fff', padding: 32, borderRadius: 24, alignItems: 'center' },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarCell: {
+    width: '14.2%',
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedCell: {
+    backgroundColor: Colors.light.primary,
+    borderRadius: 8,
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 20,
+  },
+  timeSlot: {
+    width: '23%',
+    padding: 12,
+    margin: 4,
+    borderRadius: 8,
+    backgroundColor: Colors.light.background,
+  },
+  timeSlotActive: {
+    backgroundColor: Colors.light.primary,
+  },
+  confirmBtn: {
+    backgroundColor: Colors.light.primary,
+    padding: 16,
+    margin: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  confirmBtnText: { color: '#fff', fontWeight: '700' },
+  successOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  successCard: {
+    backgroundColor: '#fff',
+    padding: 32,
+    borderRadius: 24,
+    alignItems: 'center',
+  },
   successTitle: { fontSize: 22, fontWeight: '700', marginTop: 12 },
-  successText: { marginTop: 8 },
+  successText: { textAlign: 'center', marginTop: 8 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorTitle: { fontSize: 20, fontWeight: '700' },
+  errorText: { marginTop: 8, color: '#666', textAlign: 'center' },
+  backBtn: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: Colors.light.primary,
+    borderRadius: 12,
+  },
+  backBtnText: { color: '#fff' },
 });
