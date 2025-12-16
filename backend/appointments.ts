@@ -1,43 +1,39 @@
-import { Router } from 'express'
+import { Hono } from 'hono'
 import { createClient } from '@supabase/supabase-js'
-
-const router = Router()
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-/**
- * POST /appointments
- * Cria um agendamento de consulta
- */
-router.post('/', async (req, res) => {
-  try {
-    const { doctor_id, start_time } = req.body
+export const appointmentsRouter = new Hono()
 
-    // 1. Validação básica
+appointmentsRouter.post('/', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { doctor_id, start_time } = body
+
     if (!doctor_id || !start_time) {
-      return res.status(400).json({ error: 'Dados incompletos' })
+      return c.json({ error: 'Dados incompletos' }, 400)
     }
 
-    // 2. Identificar usuário autenticado
-    const authHeader = req.headers.authorization
+    // Auth header
+    const authHeader = c.req.header('authorization')
     if (!authHeader) {
-      return res.status(401).json({ error: 'Não autenticado' })
+      return c.json({ error: 'Não autenticado' }, 401)
     }
 
     const token = authHeader.replace('Bearer ', '')
+
     const { data: userData, error: authError } =
       await supabase.auth.getUser(token)
 
     if (authError || !userData.user) {
-      return res.status(401).json({ error: 'Usuário inválido' })
+      return c.json({ error: 'Usuário inválido' }, 401)
     }
 
     const patient_id = userData.user.id
 
-    // 3. Criar consulta (o banco garante não duplicar)
     const { data, error } = await supabase
       .from('appointments')
       .insert({
@@ -50,21 +46,15 @@ router.post('/', async (req, res) => {
       .single()
 
     if (error) {
-      // Conflito de horário
       if (error.code === '23505') {
-        return res
-          .status(409)
-          .json({ error: 'Horário já ocupado' })
+        return c.json({ error: 'Horário já ocupado' }, 409)
       }
-
-      return res.status(500).json({ error: error.message })
+      return c.json({ error: error.message }, 500)
     }
 
-    return res.status(201).json(data)
+    return c.json(data, 201)
   } catch (err) {
     console.error(err)
-    return res.status(500).json({ error: 'Erro interno' })
+    return c.json({ error: 'Erro interno' }, 500)
   }
 })
-
-export default router
