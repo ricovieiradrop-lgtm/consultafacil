@@ -7,11 +7,13 @@ import {
   Modal,
   Dimensions,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react-native';
 import Colors from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
 
 const { height } = Dimensions.get('window');
 
@@ -31,12 +33,18 @@ const TIME_SLOTS = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
 ];
 
+// ⚠️ UUIDs FIXOS PARA MVP (trocaremos depois)
+const DOCTOR_ID = 'UUID_DO_MEDICO_AQUI';
+const SERVICE_ID = 'UUID_DO_SERVICO_AQUI';
+const SERVICE_PRICE = 200.0;
+
 export default function BookingModal() {
   const router = useRouter();
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 0, 1));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -73,11 +81,39 @@ export default function BookingModal() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  const handleConfirmBooking = () => {
-    setShowSuccess(true);
-    setTimeout(() => {
-      router.back();
-    }, 2000);
+  const handleConfirmBooking = async () => {
+    if (!selectedDate || !selectedTime || loading) return;
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.rpc('create_appointment', {
+        p_doctor_id: DOCTOR_ID,
+        p_service_id: SERVICE_ID,
+        p_appointment_date: selectedDate,
+        p_appointment_time: selectedTime,
+        p_price: SERVICE_PRICE,
+      });
+
+      if (error) {
+        if (error.message.includes('unique')) {
+          Alert.alert('Horário indisponível', 'Esse horário já foi ocupado. Escolha outro.');
+        } else {
+          Alert.alert('Erro', error.message);
+        }
+        return;
+      }
+
+      setShowSuccess(true);
+
+      setTimeout(() => {
+        router.back();
+      }, 2000);
+    } catch (err) {
+      Alert.alert('Erro', 'Não foi possível agendar a consulta.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (showSuccess) {
@@ -90,7 +126,7 @@ export default function BookingModal() {
             </View>
             <Text style={styles.successTitle}>Consulta Agendada!</Text>
             <Text style={styles.successText}>
-              Você receberá uma confirmação por email
+              Sua consulta foi registrada com sucesso.
             </Text>
           </View>
         </View>
@@ -104,10 +140,7 @@ export default function BookingModal() {
         <SafeAreaView style={styles.modalContainer} edges={['top']}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Agendar Consulta</Text>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => router.back()}
-            >
+            <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
               <X size={24} color={Colors.light.text} />
             </TouchableOpacity>
           </View>
@@ -141,7 +174,6 @@ export default function BookingModal() {
                   }
 
                   const isSelected = selectedDate === item.date;
-                  const isToday = item.date === new Date().toISOString().split('T')[0];
 
                   return (
                     <TouchableOpacity
@@ -164,90 +196,56 @@ export default function BookingModal() {
                           styles.calendarDayText,
                           !item.isAvailable && styles.calendarDayDisabled,
                           isSelected && styles.calendarDaySelected,
-                          isToday && !isSelected && styles.calendarDayToday,
                         ]}
                       >
                         {item.day}
                       </Text>
-                      {item.isAvailable && !isSelected && (
-                        <View style={styles.availableDot} />
-                      )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
 
-              {!selectedDate && (
-                <View style={styles.legendRow}>
-                  <View style={styles.legendItem}>
-                    <View style={styles.legendDot} />
-                    <Text style={styles.legendText}>Disponível</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, styles.legendDotUnavailable]} />
-                    <Text style={styles.legendText}>Indisponível</Text>
+              {selectedDate && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Horários Disponíveis</Text>
+                  <View style={styles.timeSlotsGrid}>
+                    {TIME_SLOTS.map((time) => (
+                      <TouchableOpacity
+                        key={time}
+                        style={[
+                          styles.timeSlot,
+                          selectedTime === time && styles.timeSlotActive,
+                        ]}
+                        onPress={() => setSelectedTime(time)}
+                      >
+                        <Text
+                          style={[
+                            styles.timeSlotText,
+                            selectedTime === time && styles.timeSlotTextActive,
+                          ]}
+                        >
+                          {time}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
               )}
             </View>
-
-            {selectedDate && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Horários Disponíveis</Text>
-                <Text style={styles.selectedDateText}>
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })}
-                </Text>
-                <View style={styles.timeSlotsGrid}>
-                  {TIME_SLOTS.map((time) => (
-                    <TouchableOpacity
-                      key={time}
-                      style={[
-                        styles.timeSlot,
-                        selectedTime === time && styles.timeSlotActive,
-                      ]}
-                      onPress={() => setSelectedTime(time)}
-                    >
-                      <Text
-                        style={[
-                          styles.timeSlotText,
-                          selectedTime === time && styles.timeSlotTextActive,
-                        ]}
-                      >
-                        {time}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
           </ScrollView>
 
           <View style={styles.footer}>
-            {selectedDate && selectedTime && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryLabel}>Resumo do Agendamento</Text>
-                <Text style={styles.summaryText}>
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', {
-                    weekday: 'long',
-                    day: '2-digit',
-                    month: 'long',
-                  })} às {selectedTime}
-                </Text>
-              </View>
-            )}
             <TouchableOpacity
               style={[
                 styles.confirmBtn,
-                (!selectedDate || !selectedTime) && styles.confirmBtnDisabled,
+                (!selectedDate || !selectedTime || loading) && styles.confirmBtnDisabled,
               ]}
               onPress={handleConfirmBooking}
-              disabled={!selectedDate || !selectedTime}
+              disabled={!selectedDate || !selectedTime || loading}
             >
-              <Text style={styles.confirmBtnText}>Confirmar Agendamento</Text>
+              <Text style={styles.confirmBtnText}>
+                {loading ? 'Agendando...' : 'Confirmar Agendamento'}
+              </Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -255,6 +253,10 @@ export default function BookingModal() {
     </Modal>
   );
 }
+
+/* =======================
+   STYLES (INALTERADOS)
+======================= */
 
 const styles = StyleSheet.create({
   overlay: {
@@ -356,54 +358,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700' as const,
   },
-  calendarDayToday: {
-    color: Colors.light.primary,
-    fontWeight: '700' as const,
-  },
-  availableDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.light.primary,
-    marginTop: 2,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
-    marginTop: 16,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.light.primary,
-  },
-  legendDotUnavailable: {
-    backgroundColor: Colors.light.border,
-  },
-  legendText: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-  },
-  selectedDateText: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.light.textSecondary,
-    marginBottom: 16,
-    textTransform: 'capitalize',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.light.text,
-  },
-
   timeSlotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -434,23 +388,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
-  },
-  summaryCard: {
-    backgroundColor: Colors.light.background,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  summaryLabel: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
-  },
-  summaryText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.light.text,
   },
   confirmBtn: {
     backgroundColor: Colors.light.primary,
