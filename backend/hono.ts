@@ -1,3 +1,4 @@
+import { appointmentsRouter } from './appointments'
 import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -8,6 +9,9 @@ import { createContext } from "./trpc/create-context";
 const app = new Hono();
 
 app.use("*", cors());
+
+// 👉 REGISTRO DO ENDPOINT DE AGENDAMENTO
+app.route('/appointments', appointmentsRouter);
 
 app.use(
   "/trpc/*",
