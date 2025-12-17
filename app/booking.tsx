@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react-native';
+import { X, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
-import { useDoctorAvailability, useDoctorAppointments } from '@/lib/supabase-hooks';
+import { useDoctorAvailability, useDoctorAppointments, usePatientAppointments } from '@/lib/supabase-hooks';
 
 const { height } = Dimensions.get('window');
 
@@ -61,9 +61,35 @@ export default function BookingScreen() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showExistingAppointment, setShowExistingAppointment] = useState(false);
+  const [existingAppointment, setExistingAppointment] = useState<any>(null);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const { data: availability } = useDoctorAvailability(doctorId);
   const { data: existingAppointments } = useDoctorAppointments(doctorId, selectedDate || undefined);
+  const { data: patientAppointments } = usePatientAppointments(userId || undefined);
+
+  useEffect(() => {
+    const getUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id || null);
+    };
+    getUserId();
+  }, []);
+
+  useEffect(() => {
+    if (!patientAppointments || !doctorId) return;
+
+    const scheduledAppointment = patientAppointments.find(
+      (apt: any) => apt.doctor_id === doctorId && apt.status === 'scheduled'
+    );
+
+    if (scheduledAppointment && !isRescheduling) {
+      setExistingAppointment(scheduledAppointment);
+      setShowExistingAppointment(true);
+    }
+  }, [patientAppointments, doctorId, isRescheduling]);
 
   const availableDates = useMemo(() => {
     return generateAvailableDates(availability || []);
@@ -125,24 +151,51 @@ export default function BookingScreen() {
       return;
     }
 
-    const { error } = await supabase.from('appointments').insert({
-      doctor_id: doctorId,
-      patient_id: user.id,
-      service_id: serviceId,
-      appointment_date: selectedDate,
-      appointment_time: selectedTime,
-      price: Number(price),
-    });
+    if (isRescheduling && existingAppointment) {
+      const { error: updateError } = await supabase
+        .from('appointments')
+        .update({
+          appointment_date: selectedDate,
+          appointment_time: selectedTime,
+        })
+        .eq('id', existingAppointment.id);
 
-    if (error) {
-      console.error('Booking error:', error);
-      Alert.alert('Erro', 'Não foi possível agendar a consulta. ' + error.message);
-      setLoading(false);
-      return;
+      if (updateError) {
+        console.error('Reschedule error:', updateError);
+        Alert.alert('Erro', 'Não foi possível remarcar a consulta. ' + updateError.message);
+        setLoading(false);
+        return;
+      }
+    } else {
+      const { error } = await supabase.from('appointments').insert({
+        doctor_id: doctorId,
+        patient_id: user.id,
+        service_id: serviceId,
+        appointment_date: selectedDate,
+        appointment_time: selectedTime,
+        price: Number(price),
+      });
+
+      if (error) {
+        console.error('Booking error:', error);
+        Alert.alert('Erro', 'Não foi possível agendar a consulta. ' + error.message);
+        setLoading(false);
+        return;
+      }
     }
 
     setShowSuccess(true);
     setTimeout(() => router.replace('/(tabs)/appointments'), 2000);
+  };
+
+  const handleReschedule = () => {
+    setIsRescheduling(true);
+    setShowExistingAppointment(false);
+  };
+
+  const handleCancelExisting = () => {
+    setShowExistingAppointment(false);
+    router.back();
   };
 
   if (!doctorId || !serviceId || !price) {
@@ -159,13 +212,65 @@ export default function BookingScreen() {
     );
   }
 
+  if (showExistingAppointment && existingAppointment) {
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+    };
+
+    return (
+      <Modal visible transparent animationType="fade">
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertCard}>
+            <AlertCircle size={64} color={Colors.light.primary} />
+            <Text style={styles.alertTitle}>Consulta Agendada</Text>
+            <Text style={styles.alertText}>
+              Você já possui uma consulta agendada com este médico:
+            </Text>
+            <View style={styles.existingAppointmentInfo}>
+              <Text style={styles.existingAppointmentDate}>
+                {formatDate(existingAppointment.appointment_date)}
+              </Text>
+              <Text style={styles.existingAppointmentTime}>
+                às {existingAppointment.appointment_time?.slice(0, 5)}
+              </Text>
+            </View>
+            <Text style={styles.alertSubText}>
+              Deseja remarcar para outra data?
+            </Text>
+            <View style={styles.alertActions}>
+              <TouchableOpacity
+                style={styles.alertBtnSecondary}
+                onPress={handleCancelExisting}
+              >
+                <Text style={styles.alertBtnSecondaryText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.alertBtnPrimary}
+                onPress={handleReschedule}
+              >
+                <Text style={styles.alertBtnPrimaryText}>Remarcar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   if (showSuccess) {
     return (
       <Modal visible transparent animationType="fade">
         <View style={styles.successOverlay}>
           <View style={styles.successCard}>
             <CheckCircle size={64} color={Colors.light.success} />
-            <Text style={styles.successTitle}>Consulta Agendada!</Text>
+            <Text style={styles.successTitle}>
+              {isRescheduling ? 'Consulta Remarcada!' : 'Consulta Agendada!'}
+            </Text>
             <Text style={styles.successText}>
               Você pode acompanhar em Minhas Consultas.
             </Text>
@@ -180,7 +285,9 @@ export default function BookingScreen() {
       <View style={styles.overlay}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Agendar Consulta</Text>
+            <Text style={styles.headerTitle}>
+              {isRescheduling ? 'Remarcar Consulta' : 'Agendar Consulta'}
+            </Text>
             <TouchableOpacity onPress={() => router.back()}>
               <X size={24} color={Colors.light.text} />
             </TouchableOpacity>
@@ -276,7 +383,9 @@ export default function BookingScreen() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.confirmBtnText}>Confirmar Agendamento</Text>
+              <Text style={styles.confirmBtnText}>
+                {isRescheduling ? 'Confirmar Remarcação' : 'Confirmar Agendamento'}
+              </Text>
             )}
           </TouchableOpacity>
         </SafeAreaView>
@@ -465,5 +574,88 @@ const styles = StyleSheet.create({
   backBtnText: { 
     color: '#fff',
     fontWeight: '600' as const,
+  },
+  alertOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  alertCard: {
+    backgroundColor: '#fff',
+    padding: 32,
+    borderRadius: 24,
+    alignItems: 'center',
+    marginHorizontal: 40,
+    maxWidth: 400,
+  },
+  alertTitle: { 
+    fontSize: 22, 
+    fontWeight: '700' as const, 
+    marginTop: 16,
+    color: Colors.light.text,
+  },
+  alertText: { 
+    textAlign: 'center', 
+    marginTop: 12,
+    color: Colors.light.textSecondary,
+    fontSize: 14,
+  },
+  alertSubText: { 
+    textAlign: 'center', 
+    marginTop: 8,
+    color: Colors.light.textSecondary,
+    fontSize: 14,
+  },
+  existingAppointmentInfo: {
+    backgroundColor: Colors.light.background,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  existingAppointmentDate: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+    textTransform: 'capitalize',
+  },
+  existingAppointmentTime: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.light.primary,
+    marginTop: 4,
+  },
+  alertActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    width: '100%',
+  },
+  alertBtnSecondary: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    alignItems: 'center',
+  },
+  alertBtnSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+  },
+  alertBtnPrimary: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+  },
+  alertBtnPrimaryText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });

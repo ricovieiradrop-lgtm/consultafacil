@@ -5,35 +5,39 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, Clock, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-
-const MOCK_APPOINTMENTS = [
-  {
-    id: '1',
-    doctorName: 'Dra. Ana Silva',
-    specialty: 'Cardiologia',
-    service: 'Consulta Cardiológica',
-    date: '2025-01-20',
-    time: '10:00',
-    location: 'Av. Paulista, 1578',
-    status: 'confirmed' as const,
-  },
-  {
-    id: '2',
-    doctorName: 'Dr. Carlos Mendes',
-    specialty: 'Dermatologia',
-    service: 'Consulta Dermatológica',
-    date: '2025-01-22',
-    time: '14:30',
-    location: 'Rua das Laranjeiras, 456',
-    status: 'confirmed' as const,
-  },
-];
+import { useAuth } from '@/contexts/auth';
+import { usePatientAppointments } from '@/lib/supabase-hooks';
 
 export default function AppointmentsScreen() {
+  const { user } = useAuth();
+  const { data: appointments, isLoading } = usePatientAppointments(user?.id);
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'scheduled':
+        return { bg: '#ECFDF5', text: Colors.light.success, label: 'Confirmada' };
+      case 'completed':
+        return { bg: '#F3F4F6', text: '#6B7280', label: 'Realizada' };
+      case 'cancelled':
+        return { bg: '#FEF2F2', text: '#EF4444', label: 'Cancelada' };
+      default:
+        return { bg: '#F3F4F6', text: '#6B7280', label: 'Pendente' };
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -45,50 +49,59 @@ export default function AppointmentsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {MOCK_APPOINTMENTS.map((appointment) => (
-          <View key={appointment.id} style={styles.appointmentCard}>
-            <View style={styles.appointmentHeader}>
-              <View style={styles.statusBadge}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>Confirmada</Text>
-              </View>
-              <Text style={styles.dateText}>
-                {new Date(appointment.date).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: 'short',
-                })}
-              </Text>
-            </View>
-
-            <Text style={styles.doctorName}>{appointment.doctorName}</Text>
-            <Text style={styles.specialty}>{appointment.specialty}</Text>
-            <Text style={styles.serviceName}>{appointment.service}</Text>
-
-            <View style={styles.appointmentInfo}>
-              <View style={styles.infoRow}>
-                <Clock size={16} color={Colors.light.textSecondary} />
-                <Text style={styles.infoText}>{appointment.time}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <MapPin size={16} color={Colors.light.textSecondary} />
-                <Text style={styles.infoText} numberOfLines={1}>
-                  {appointment.location}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.appointmentActions}>
-              <TouchableOpacity style={styles.actionBtnSecondary}>
-                <Text style={styles.actionBtnSecondaryText}>Remarcar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtnPrimary}>
-                <Text style={styles.actionBtnPrimaryText}>Ver Detalhes</Text>
-              </TouchableOpacity>
-            </View>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <Text style={styles.loadingText}>Carregando consultas...</Text>
           </View>
-        ))}
+        ) : appointments && appointments.length > 0 ? (
+          appointments.map((appointment: any) => {
+            const statusInfo = getStatusColor(appointment.status);
+            return (
+              <View key={appointment.id} style={styles.appointmentCard}>
+                <View style={styles.appointmentHeader}>
+                  <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+                    <View style={[styles.statusDot, { backgroundColor: statusInfo.text }]} />
+                    <Text style={[styles.statusText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
+                  </View>
+                  <Text style={styles.dateText}>
+                    {formatDate(appointment.appointment_date)}
+                  </Text>
+                </View>
 
-        {MOCK_APPOINTMENTS.length === 0 && (
+                <Text style={styles.doctorName}>{appointment.doctor_name}</Text>
+                <Text style={styles.specialty}>{appointment.specialty_name || 'Clínico Geral'}</Text>
+                <Text style={styles.serviceName}>{appointment.service_name}</Text>
+
+                <View style={styles.appointmentInfo}>
+                  <View style={styles.infoRow}>
+                    <Clock size={16} color={Colors.light.textSecondary} />
+                    <Text style={styles.infoText}>{appointment.appointment_time?.slice(0, 5)}</Text>
+                  </View>
+                  {appointment.doctor_location && (
+                    <View style={styles.infoRow}>
+                      <MapPin size={16} color={Colors.light.textSecondary} />
+                      <Text style={styles.infoText} numberOfLines={1}>
+                        {appointment.doctor_location}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {appointment.status === 'scheduled' && (
+                  <View style={styles.appointmentActions}>
+                    <TouchableOpacity style={styles.actionBtnSecondary}>
+                      <Text style={styles.actionBtnSecondaryText}>Remarcar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionBtnPrimary}>
+                      <Text style={styles.actionBtnPrimaryText}>Ver Detalhes</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })
+        ) : (
           <View style={styles.emptyState}>
             <Calendar size={64} color={Colors.light.border} />
             <Text style={styles.emptyTitle}>Nenhuma consulta agendada</Text>
@@ -244,5 +257,16 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 80,
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
   },
 });

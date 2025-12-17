@@ -21,8 +21,6 @@ import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
 import { useSpecialties, useDoctors } from '@/lib/supabase-hooks';
 
-import { doctors as mockDoctors } from '@/mocks/doctors';
-
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 56) / 2;
 
@@ -32,10 +30,9 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useSpecialties();
-  const { data: doctorsData } = useDoctors();
+  const { data: doctorsData, loading: doctorsLoading } = useDoctors();
 
-  const doctors = doctorsData?.length ? doctorsData : mockDoctors;
-
+  const doctors = doctorsData || [];
   const featuredDoctors = doctors.slice(0, 4);
 
   function handleDoctorPress(doctorId: string) {
@@ -92,6 +89,15 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Médicos em Destaque</Text>
 
+          {doctorsLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Carregando médicos...</Text>
+            </View>
+          ) : featuredDoctors.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Nenhum médico disponível no momento</Text>
+            </View>
+          ) : (
           <View style={styles.doctorsGrid}>
             {featuredDoctors.map((doctor) => (
               <TouchableOpacity 
@@ -124,6 +130,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -174,4 +181,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bookBtnText: { color: '#fff', fontWeight: '600' },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: Colors.light.textSecondary,
+    fontSize: 14,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: Colors.light.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+  },
 });
