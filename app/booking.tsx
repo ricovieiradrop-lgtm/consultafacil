@@ -194,6 +194,23 @@ export default function BookingScreen() {
         return;
       }
     } else {
+      // Check if there's a cancelled appointment for this slot and delete it first
+      const { data: cancelledAppt } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('doctor_id', doctorId)
+        .eq('appointment_date', selectedDate)
+        .eq('appointment_time', selectedTime)
+        .eq('status', 'cancelled')
+        .single();
+
+      if (cancelledAppt) {
+        await supabase
+          .from('appointments')
+          .delete()
+          .eq('id', cancelledAppt.id);
+      }
+
       const { error } = await supabase.from('appointments').insert({
         doctor_id: doctorId,
         patient_id: user.id,

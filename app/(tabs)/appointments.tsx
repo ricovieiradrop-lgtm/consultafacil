@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar, Clock, MapPin, Users, X, Navigation } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Users, X, Navigation, Trash2, ChevronRight } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/auth';
@@ -244,6 +244,39 @@ export default function AppointmentsScreen() {
     );
   };
 
+  const handleDeleteAppointment = async (appointmentId: string) => {
+    Alert.alert(
+      'Excluir Consulta',
+      'Deseja remover esta consulta cancelada do histórico?',
+      [
+        {
+          text: 'Não',
+          style: 'cancel',
+        },
+        {
+          text: 'Sim, Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('appointments')
+              .delete()
+              .eq('id', appointmentId);
+
+            if (!error) {
+              queryClient.removeQueries({ 
+                predicate: (query) => 
+                  query.queryKey[0] === 'patient-appointments'
+              });
+              Alert.alert('Sucesso', 'Consulta removida com sucesso.');
+            } else {
+              Alert.alert('Erro', 'Não foi possível remover a consulta.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('pt-BR', {
@@ -345,14 +378,33 @@ export default function AppointmentsScreen() {
                   )}
                 </View>
 
-                {appointment.status === 'scheduled' && (
+                <View style={styles.cardActions}>
                   <TouchableOpacity 
-                    style={styles.cancelBtn}
-                    onPress={() => handleCancelAppointment(appointment.id)}
+                    style={styles.detailsBtn}
+                    onPress={() => setSelectedAppointment(appointment)}
                   >
-                    <Text style={styles.cancelBtnText}>Cancelar Consulta</Text>
+                    <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
+                    <ChevronRight size={16} color={Colors.light.primary} />
                   </TouchableOpacity>
-                )}
+
+                  {appointment.status === 'scheduled' && (
+                    <TouchableOpacity 
+                      style={styles.cancelBtn}
+                      onPress={() => handleCancelAppointment(appointment.id)}
+                    >
+                      <Text style={styles.cancelBtnText}>Cancelar</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {appointment.status === 'cancelled' && (
+                    <TouchableOpacity 
+                      style={styles.deleteBtn}
+                      onPress={() => handleDeleteAppointment(appointment.id)}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </TouchableOpacity>
             );
           })
@@ -473,8 +525,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.textSecondary,
   },
-  cancelBtn: {
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  detailsBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
     paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.primary,
+  },
+  detailsBtnText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.light.primary,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 8,
     backgroundColor: '#EF4444',
     alignItems: 'center',
@@ -483,6 +559,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  deleteBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   emptyState: {
     alignItems: 'center',

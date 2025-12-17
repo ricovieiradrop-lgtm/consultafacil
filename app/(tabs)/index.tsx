@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -155,18 +156,25 @@ export default function HomeScreen() {
               {specialties.map((specialty) => {
                 const IconComponent = getSpecialtyIcon(specialty.name);
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={specialty.id}
                     style={styles.specialtyCard}
                     onPress={() => handleSpecialtyPress(specialty.name)}
                   >
-                    <View style={styles.specialtyIconContainer}>
-                      <IconComponent size={28} color={Colors.light.primary} />
-                    </View>
-                    <Text style={styles.specialtyName} numberOfLines={2}>
-                      {specialty.name}
-                    </Text>
-                  </TouchableOpacity>
+                    {({ pressed }) => (
+                      <>
+                        <View style={[
+                          styles.specialtyIconContainer,
+                          pressed && styles.specialtyIconContainerPressed,
+                        ]}>
+                          <IconComponent size={28} color={Colors.light.primary} />
+                        </View>
+                        <Text style={styles.specialtyName} numberOfLines={2}>
+                          {specialty.name}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
                 );
               })}
             </ScrollView>
@@ -249,23 +257,23 @@ const styles = StyleSheet.create({
   },
   promoCard: {
     borderRadius: 24,
-    padding: 12,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     overflow: 'hidden',
-    height: 160,
+    height: 170,
   },
   promoContent: {
     flex: 1,
     zIndex: 2,
-    paddingRight: 10,
+    paddingRight: 16,
   },
   promoTitle: {
     color: '#fff',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    lineHeight: 28,
+    lineHeight: 26,
     marginBottom: 8,
   },
   promoSubtitle: {
@@ -276,22 +284,22 @@ const styles = StyleSheet.create({
   },
   promoBtn: {
     backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   promoBtnText: {
     color: '#0F766E',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
   },
   promoImage: {
-    width: 120,
-    height: 120,
+    width: 110,
+    height: 130,
     position: 'absolute',
-    right: 12,
-    top: 20,
+    right: 16,
+    bottom: 0,
     borderRadius: 0,
   },
   section: { paddingHorizontal: 20, marginTop: 24 },
@@ -364,11 +372,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  specialtyIconContainerPressed: {
+    backgroundColor: Colors.light.background,
+    transform: [{ scale: 0.95 }],
   },
   specialtyName: {
     fontSize: 13,
