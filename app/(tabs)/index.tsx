@@ -89,7 +89,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* HEADER */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Olá, {user?.name || 'Usuário'}</Text>
@@ -312,6 +315,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     borderRadius: 16,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   doctorImage: { height: 120 },
   doctorInfo: { padding: 12 },
@@ -370,5 +378,8 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     textAlign: 'center',
     maxWidth: 80,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
 });
