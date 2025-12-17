@@ -50,4 +50,7 @@ export interface Appointment {
   time: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   price: number;
+  beneficiaryName?: string;
+  beneficiaryPhone?: string;
+  isForSelf: boolean;
 }

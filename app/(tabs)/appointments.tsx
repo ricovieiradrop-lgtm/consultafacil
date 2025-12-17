@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar, Clock, MapPin } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/auth';
@@ -109,6 +109,19 @@ export default function AppointmentsScreen() {
                 <Text style={styles.doctorName}>{appointment.doctor_name}</Text>
                 <Text style={styles.specialty}>{appointment.specialty_name || 'Clínico Geral'}</Text>
                 <Text style={styles.serviceName}>{appointment.service_name}</Text>
+
+                {!appointment.is_for_self && appointment.beneficiary_name && (
+                  <View style={styles.beneficiaryBadge}>
+                    <Users size={14} color={Colors.light.primary} />
+                    <View style={styles.beneficiaryInfo}>
+                      <Text style={styles.beneficiaryLabel}>Consulta para:</Text>
+                      <Text style={styles.beneficiaryName}>{appointment.beneficiary_name}</Text>
+                      {appointment.beneficiary_phone && (
+                        <Text style={styles.beneficiaryPhone}>{appointment.beneficiary_phone}</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
 
                 <View style={styles.appointmentInfo}>
                   <View style={styles.infoRow}>
@@ -284,6 +297,36 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
+  beneficiaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.light.background,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.primary,
+  },
+  beneficiaryInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  beneficiaryLabel: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+  },
+  beneficiaryName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+  },
+  beneficiaryPhone: {
+    fontSize: 12,
     color: Colors.light.textSecondary,
   },
 });

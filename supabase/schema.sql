@@ -82,6 +82,9 @@ CREATE TABLE appointments (
   status TEXT NOT NULL CHECK (status IN ('scheduled', 'completed', 'cancelled')) DEFAULT 'scheduled',
   price DECIMAL(10,2) NOT NULL,
   notes TEXT,
+  beneficiary_name TEXT,
+  beneficiary_phone TEXT,
+  is_for_self BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT unique_appointment UNIQUE(doctor_id, appointment_date, appointment_time)

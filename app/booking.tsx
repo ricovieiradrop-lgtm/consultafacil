@@ -9,10 +9,13 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { X, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { X, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, User, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
@@ -67,6 +70,10 @@ export default function BookingScreen() {
   const [existingAppointment, setExistingAppointment] = useState<any>(null);
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showBeneficiarySelection, setShowBeneficiarySelection] = useState(true);
+  const [isForSelf, setIsForSelf] = useState(true);
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryPhone, setBeneficiaryPhone] = useState('');
 
   const { data: availability } = useDoctorAvailability(doctorId);
   const { data: existingAppointments } = useDoctorAppointments(doctorId, selectedDate || undefined);
@@ -150,6 +157,11 @@ export default function BookingScreen() {
   const handleConfirmBooking = async () => {
     if (!selectedDate || !selectedTime || !doctorId || !serviceId || !price) return;
 
+    if (!isForSelf && (!beneficiaryName.trim() || !beneficiaryPhone.trim())) {
+      Alert.alert('Erro', 'Preencha o nome e telefone do beneficiário');
+      return;
+    }
+
     setLoading(true);
 
     const {
@@ -169,6 +181,9 @@ export default function BookingScreen() {
         .update({
           appointment_date: selectedDate,
           appointment_time: selectedTime,
+          is_for_self: isForSelf,
+          beneficiary_name: isForSelf ? null : beneficiaryName,
+          beneficiary_phone: isForSelf ? null : beneficiaryPhone,
         })
         .eq('id', existingAppointment.id);
 
@@ -186,6 +201,9 @@ export default function BookingScreen() {
         appointment_date: selectedDate,
         appointment_time: selectedTime,
         price: Number(price),
+        is_for_self: isForSelf,
+        beneficiary_name: isForSelf ? null : beneficiaryName,
+        beneficiary_phone: isForSelf ? null : beneficiaryPhone,
       });
 
       if (error) {
@@ -207,6 +225,15 @@ export default function BookingScreen() {
   const handleReschedule = () => {
     setIsRescheduling(true);
     setShowExistingAppointment(false);
+    setShowBeneficiarySelection(true);
+  };
+
+  const handleBeneficiaryConfirm = () => {
+    if (!isForSelf && (!beneficiaryName.trim() || !beneficiaryPhone.trim())) {
+      Alert.alert('Atenção', 'Preencha o nome e telefone do beneficiário');
+      return;
+    }
+    setShowBeneficiarySelection(false);
   };
 
   const handleCancelExisting = () => {
@@ -274,6 +301,114 @@ export default function BookingScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+    );
+  }
+
+  if (showBeneficiarySelection && !showExistingAppointment) {
+    return (
+      <Modal visible transparent animationType="fade">
+        <KeyboardAvoidingView 
+          style={styles.beneficiaryOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity 
+            activeOpacity={1} 
+            style={styles.beneficiaryOverlay}
+            onPress={() => router.back()}
+          >
+            <TouchableOpacity 
+              activeOpacity={1} 
+              style={styles.beneficiaryCard}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.beneficiaryTitle}>Para quem é essa Consulta?</Text>
+              
+              <View style={styles.beneficiaryOptions}>
+                <TouchableOpacity
+                  style={[
+                    styles.beneficiaryOption,
+                    isForSelf && styles.beneficiaryOptionActive,
+                  ]}
+                  onPress={() => {
+                    setIsForSelf(true);
+                    setBeneficiaryName('');
+                    setBeneficiaryPhone('');
+                  }}
+                >
+                  <User 
+                    size={32} 
+                    color={isForSelf ? '#FFFFFF' : Colors.light.primary} 
+                  />
+                  <Text style={[
+                    styles.beneficiaryOptionText,
+                    isForSelf && styles.beneficiaryOptionTextActive,
+                  ]}>Para Mim</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.beneficiaryOption,
+                    !isForSelf && styles.beneficiaryOptionActive,
+                  ]}
+                  onPress={() => setIsForSelf(false)}
+                >
+                  <Users 
+                    size={32} 
+                    color={!isForSelf ? '#FFFFFF' : Colors.light.primary} 
+                  />
+                  <Text style={[
+                    styles.beneficiaryOptionText,
+                    !isForSelf && styles.beneficiaryOptionTextActive,
+                  ]}>Para outra Pessoa</Text>
+                </TouchableOpacity>
+              </View>
+
+              {!isForSelf && (
+                <View style={styles.beneficiaryForm}>
+                  <Text style={styles.beneficiaryFormTitle}>Dados do Beneficiário</Text>
+                  
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Nome Completo</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Digite o nome completo"
+                      value={beneficiaryName}
+                      onChangeText={setBeneficiaryName}
+                      placeholderTextColor={Colors.light.border}
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Telefone para Contato</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="(00) 00000-0000"
+                      value={beneficiaryPhone}
+                      onChangeText={setBeneficiaryPhone}
+                      keyboardType="phone-pad"
+                      placeholderTextColor={Colors.light.border}
+                    />
+                  </View>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.beneficiaryConfirmBtn}
+                onPress={handleBeneficiaryConfirm}
+              >
+                <Text style={styles.beneficiaryConfirmText}>Continuar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.beneficiaryCancelBtn}
+                onPress={() => router.back()}
+              >
+                <Text style={styles.beneficiaryCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     );
   }
@@ -685,5 +820,107 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFFFFF',
+  },
+  beneficiaryOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 20,
+  },
+  beneficiaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 500,
+  },
+  beneficiaryTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  beneficiaryOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  beneficiaryOption: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.light.background,
+    gap: 8,
+  },
+  beneficiaryOptionActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  beneficiaryOptionText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+    textAlign: 'center',
+  },
+  beneficiaryOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  beneficiaryForm: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+  },
+  beneficiaryFormTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+    marginBottom: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.light.text,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  beneficiaryConfirmBtn: {
+    backgroundColor: Colors.light.primary,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  beneficiaryConfirmText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  beneficiaryCancelBtn: {
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+  },
+  beneficiaryCancelText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.light.textSecondary,
   },
 });
