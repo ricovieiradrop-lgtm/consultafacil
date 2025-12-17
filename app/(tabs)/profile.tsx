@@ -26,6 +26,8 @@ import {
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
 import { useAuth } from '@/contexts/auth';
+import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
 const MENU_SECTIONS = [
@@ -49,6 +51,7 @@ const MENU_SECTIONS = [
 export default function ProfileScreen() {
   const { user, updateUser } = useUser();
   const authContext = useAuth();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -144,6 +147,89 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleClearAppointments = () => {
+    const authedUserId = authContext?.user?.id;
+
+    if (!authedUserId) {
+      Alert.alert('Erro', 'Você precisa estar logado para limpar as consultas.');
+      return;
+    }
+
+    Alert.alert(
+      'Limpar Consultas',
+      'Isso irá apagar todas as suas consultas (agendadas, realizadas e canceladas). Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🧹 Clearing appointments for user', authedUserId);
+
+              const profileRole = authContext?.profile?.role;
+
+              const deletes: Promise<{ error: unknown }>[] = [];
+
+              deletes.push(
+                (async () => {
+                  const { error } = await supabase
+                    .from('appointments')
+                    .delete()
+                    .eq('patient_id', authedUserId);
+                  return { error };
+                })()
+              );
+
+              if (profileRole === 'doctor') {
+                deletes.push(
+                  (async () => {
+                    const { error } = await supabase
+                      .from('appointments')
+                      .delete()
+                      .eq('doctor_id', authedUserId);
+                    return { error };
+                  })()
+                );
+              }
+
+              const results = await Promise.all(deletes);
+              const firstError = results.find((r) => !!r.error)?.error as any;
+
+              if (firstError) {
+                console.error('❌ Error clearing appointments', firstError);
+                Alert.alert(
+                  'Erro',
+                  'Não foi possível limpar as consultas. ' +
+                    (typeof firstError?.message === 'string' ? firstError.message : '')
+                );
+                return;
+              }
+
+              queryClient.removeQueries({
+                predicate: (query) =>
+                  query.queryKey[0] === 'patient-appointments' ||
+                  query.queryKey[0] === 'doctor-appointments',
+              });
+
+              queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+              queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
+
+              Alert.alert('Pronto', 'Suas consultas foram apagadas.');
+            } catch (e: any) {
+              console.error('❌ Unexpected error clearing appointments', e);
+              Alert.alert(
+                'Erro',
+                'Não foi possível limpar as consultas. ' +
+                  (typeof e?.message === 'string' ? e.message : '')
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -228,7 +314,15 @@ export default function ProfileScreen() {
           </View>
         ))}
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <TouchableOpacity
+          testID="clearAppointmentsButton"
+          style={styles.dangerBtn}
+          onPress={handleClearAppointments}
+        >
+          <Text style={styles.dangerBtnText}>Limpar Consultas</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logoutButton">
           <LogOut size={20} color={Colors.light.error} />
           <Text style={styles.logoutText}>Sair da Conta</Text>
         </TouchableOpacity>
@@ -529,6 +623,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600' as const,
     color: Colors.light.text,
+  },
+  dangerBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  dangerBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800' as const,
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   logoutBtn: {
     flexDirection: 'row',
