@@ -246,20 +246,20 @@ export default function BookingScreen() {
               </Text>
             </View>
             <Text style={styles.alertSubText}>
-              Deseja remarcar para outra data?
+              {existingAppointment.service_name}
             </Text>
             <View style={styles.alertActions}>
               <TouchableOpacity
                 style={styles.alertBtnSecondary}
                 onPress={handleCancelExisting}
               >
-                <Text style={styles.alertBtnSecondaryText}>Cancelar</Text>
+                <Text style={styles.alertBtnSecondaryText}>Continuar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.alertBtnPrimary}
+                style={styles.alertBtnReschedule}
                 onPress={handleReschedule}
               >
-                <Text style={styles.alertBtnPrimaryText}>Remarcar</Text>
+                <Text style={styles.alertBtnRescheduleText}>Remarcar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -660,6 +660,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alertBtnPrimaryText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  alertBtnReschedule: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  alertBtnRescheduleText: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#FFFFFF',

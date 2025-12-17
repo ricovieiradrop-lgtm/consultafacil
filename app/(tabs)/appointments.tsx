@@ -9,13 +9,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, Clock, MapPin } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/auth';
 import { usePatientAppointments } from '@/lib/supabase-hooks';
+import { supabase } from '@/lib/supabase';
 
 export default function AppointmentsScreen() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: appointments, isLoading } = usePatientAppointments(user?.id);
+
+  const handleCancelAppointment = async (appointmentId: string) => {
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'cancelled' })
+      .eq('id', appointmentId);
+
+    if (!error) {
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -41,7 +55,7 @@ export default function AppointmentsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Minhas Consultas</Text>
+        <Text style={styles.headerTitle}>Próximas Consultas</Text>
       </View>
 
       <ScrollView
@@ -89,14 +103,12 @@ export default function AppointmentsScreen() {
                 </View>
 
                 {appointment.status === 'scheduled' && (
-                  <View style={styles.appointmentActions}>
-                    <TouchableOpacity style={styles.actionBtnSecondary}>
-                      <Text style={styles.actionBtnSecondaryText}>Remarcar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtnPrimary}>
-                      <Text style={styles.actionBtnPrimaryText}>Ver Detalhes</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity 
+                    style={styles.cancelBtn}
+                    onPress={() => handleCancelAppointment(appointment.id)}
+                  >
+                    <Text style={styles.cancelBtnText}>Cancelar Consulta</Text>
+                  </TouchableOpacity>
                 )}
               </View>
             );
@@ -140,8 +152,8 @@ const styles = StyleSheet.create({
   },
   appointmentCard: {
     backgroundColor: Colors.light.card,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -152,7 +164,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -181,25 +193,25 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   doctorName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: Colors.light.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   specialty: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
     marginBottom: 2,
   },
   serviceName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: Colors.light.primary,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   appointmentInfo: {
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 10,
   },
   infoRow: {
     flexDirection: 'row',
@@ -208,35 +220,17 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
   },
-  appointmentActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionBtnSecondary: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
+  cancelBtn: {
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
     alignItems: 'center',
   },
-  actionBtnSecondaryText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.light.text,
-  },
-  actionBtnPrimary: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.light.primary,
-    alignItems: 'center',
-  },
-  actionBtnPrimaryText: {
-    fontSize: 14,
+  cancelBtnText: {
+    fontSize: 13,
     fontWeight: '600' as const,
     color: '#FFFFFF',
   },
