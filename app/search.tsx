@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,23 +10,28 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Search, ChevronLeft, Star, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useDoctors, useSpecialties } from '@/lib/supabase-hooks';
-import { doctors as mockDoctors } from '@/mocks/doctors';
-import { specialties as mockSpecialties } from '@/mocks/specialties';
 
 export default function SearchScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('Todos');
 
   const { data: doctorsData, loading: doctorsLoading } = useDoctors();
   const { data: specialtiesData } = useSpecialties();
 
-  const doctors = doctorsData?.length ? doctorsData : mockDoctors;
-  const specialties = specialtiesData?.length ? specialtiesData : mockSpecialties;
+  const doctors = useMemo(() => doctorsData || [], [doctorsData]);
+  const specialties = useMemo(() => specialtiesData || [], [specialtiesData]);
+
+  useEffect(() => {
+    if (params.specialty && typeof params.specialty === 'string') {
+      setSelectedFilter(params.specialty);
+    }
+  }, [params.specialty]);
 
   const filterChips = useMemo(() => {
     return ['Todos', ...specialties.map(s => s.name)];

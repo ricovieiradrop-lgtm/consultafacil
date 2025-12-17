@@ -15,6 +15,13 @@ import {
   Search,
   SlidersHorizontal,
   Star,
+  Heart,
+  User,
+  Bone,
+  Baby,
+  Brain,
+  Eye,
+  Stethoscope,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
@@ -29,15 +36,37 @@ export default function HomeScreen() {
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
 
-  useSpecialties();
+  const { data: specialtiesData } = useSpecialties();
   const { data: doctorsData, loading: doctorsLoading } = useDoctors();
 
   const doctors = doctorsData || [];
+  const specialties = specialtiesData || [];
   const featuredDoctors = doctors.slice(0, 4);
 
   function handleDoctorPress(doctorId: string) {
     router.push(`/doctor/${doctorId}`);
   }
+
+  function handleSpecialtyPress(specialtyName: string) {
+    router.push({
+      pathname: '/search',
+      params: { specialty: specialtyName },
+    });
+  }
+
+  const getSpecialtyIcon = (name: string) => {
+    const iconMap: Record<string, any> = {
+      'Cardiologia': Heart,
+      'Dermatologia': User,
+      'Ortopedia': Bone,
+      'Pediatria': Baby,
+      'Neurologia': Brain,
+      'Oftalmologia': Eye,
+      'Ginecologia': User,
+      'Psiquiatria': Brain,
+    };
+    return iconMap[name] || Stethoscope;
+  };
 
   function handleBookDoctor(doctor: any) {
     const serviceId = doctor.services?.[0]?.id;
@@ -80,10 +109,40 @@ export default function HomeScreen() {
         {/* PROMO */}
         <LinearGradient colors={['#2D9A8C', '#238276']} style={styles.promoCard}>
           <Text style={styles.promoTitle}>Check-ups Regulares</Text>
-          <TouchableOpacity style={styles.promoBtn}>
+          <TouchableOpacity style={styles.promoBtn} onPress={() => router.push('/search')}>
             <Text style={styles.promoBtnText}>Agendar Agora</Text>
           </TouchableOpacity>
         </LinearGradient>
+
+        {/* SPECIALTIES */}
+        {specialties.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Especialidades</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.specialtiesScroll}
+            >
+              {specialties.map((specialty) => {
+                const IconComponent = getSpecialtyIcon(specialty.name);
+                return (
+                  <TouchableOpacity
+                    key={specialty.id}
+                    style={styles.specialtyCard}
+                    onPress={() => handleSpecialtyPress(specialty.name)}
+                  >
+                    <View style={styles.specialtyIconContainer}>
+                      <IconComponent size={28} color={Colors.light.primary} />
+                    </View>
+                    <Text style={styles.specialtyName} numberOfLines={2}>
+                      {specialty.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* DOCTORS */}
         <View style={styles.section}>
@@ -150,7 +209,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1 },
-  promoCard: { margin: 20, padding: 20, borderRadius: 16 },
+  promoCard: { marginHorizontal: 20, marginTop: 20, padding: 20, borderRadius: 16 },
   promoTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   promoBtn: {
     marginTop: 12,
@@ -160,7 +219,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   promoBtnText: { color: Colors.light.primary, fontWeight: '600' },
-  section: { paddingHorizontal: 20 },
+  section: { paddingHorizontal: 20, marginTop: 24 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   doctorsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   doctorCard: {
@@ -196,6 +255,37 @@ const styles = StyleSheet.create({
   emptyText: {
     color: Colors.light.textSecondary,
     fontSize: 14,
+    textAlign: 'center',
+  },
+  specialtiesScroll: {
+    paddingRight: 20,
+    gap: 12,
+  },
+  specialtyCard: {
+    width: 100,
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  specialtyIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${Colors.light.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  specialtyName: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
     textAlign: 'center',
   },
 });
