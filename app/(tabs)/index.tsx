@@ -107,17 +107,43 @@ export default function HomeScreen() {
         </View>
 
         {/* PROMO */}
-        <LinearGradient colors={['#2D9A8C', '#238276']} style={styles.promoCard}>
-          <Text style={styles.promoTitle}>Check-ups Regulares</Text>
-          <TouchableOpacity style={styles.promoBtn} onPress={() => router.push('/search')}>
-            <Text style={styles.promoBtnText}>Agendar Agora</Text>
-          </TouchableOpacity>
-        </LinearGradient>
+        <View style={styles.promoContainer}>
+          <LinearGradient
+            colors={['#0F766E', '#0D9488']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.promoCard}
+          >
+            <View style={styles.promoContent}>
+              <Text style={styles.promoTitle}>Check-ups{'\n'}Regulares</Text>
+              <Text style={styles.promoSubtitle}>
+                Monitore sua saúde com{'\n'}consultas preventivas
+              </Text>
+              <TouchableOpacity 
+                style={styles.promoBtn} 
+                onPress={() => router.push('/search')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.promoBtnText}>Agendar Agora</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <Image
+              source={{ uri: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=2070&auto=format&fit=crop' }}
+              style={styles.promoImage}
+            />
+          </LinearGradient>
+        </View>
 
         {/* SPECIALTIES */}
         {specialties.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Especialidades</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Especialidades</Text>
+              <TouchableOpacity onPress={() => router.push('/search')}>
+                <Text style={styles.seeAllText}>Ver todas</Text>
+              </TouchableOpacity>
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -146,7 +172,12 @@ export default function HomeScreen() {
 
         {/* DOCTORS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Médicos em Destaque</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Médicos em Destaque</Text>
+            <TouchableOpacity onPress={() => router.push('/search')}>
+              <Text style={styles.seeAllText}>Ver todos</Text>
+            </TouchableOpacity>
+          </View>
 
           {doctorsLoading ? (
             <View style={styles.loadingContainer}>
@@ -209,18 +240,70 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1 },
-  promoCard: { marginHorizontal: 20, marginTop: 20, padding: 20, borderRadius: 16 },
-  promoTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  promoContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  promoCard: {
+    borderRadius: 24,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    height: 160,
+  },
+  promoContent: {
+    flex: 1,
+    zIndex: 2,
+    paddingRight: 10,
+  },
+  promoTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+    lineHeight: 28,
+    marginBottom: 8,
+  },
+  promoSubtitle: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
   promoBtn: {
-    marginTop: 12,
     backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     alignSelf: 'flex-start',
   },
-  promoBtnText: { color: Colors.light.primary, fontWeight: '600' },
+  promoBtnText: {
+    color: '#0F766E',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  promoImage: {
+    width: 140,
+    height: 180,
+    position: 'absolute',
+    right: -20,
+    bottom: -20,
+    borderRadius: 20,
+  },
   section: { paddingHorizontal: 20, marginTop: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '700' },
+  seeAllText: {
+    color: Colors.light.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   doctorsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   doctorCard: {
     width: CARD_WIDTH,

@@ -182,8 +182,9 @@ export default function BookingScreen() {
           appointment_date: selectedDate,
           appointment_time: selectedTime,
           is_for_self: isForSelf,
-          beneficiary_name: isForSelf ? null : beneficiaryName,
-          beneficiary_phone: isForSelf ? null : beneficiaryPhone,
+          notes: isForSelf 
+            ? null 
+            : `Beneficiário: ${beneficiaryName} | Telefone: ${beneficiaryPhone}`,
         })
         .eq('id', existingAppointment.id);
 
@@ -202,8 +203,9 @@ export default function BookingScreen() {
         appointment_time: selectedTime,
         price: Number(price),
         is_for_self: isForSelf,
-        beneficiary_name: isForSelf ? null : beneficiaryName,
-        beneficiary_phone: isForSelf ? null : beneficiaryPhone,
+        notes: isForSelf 
+          ? null 
+          : `Beneficiário: ${beneficiaryName} | Telefone: ${beneficiaryPhone}`,
       });
 
       if (error) {

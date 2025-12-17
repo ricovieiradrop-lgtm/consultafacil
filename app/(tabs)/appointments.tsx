@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,19 +7,209 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar, Clock, MapPin, Users } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Users, X, Navigation } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/auth';
-import { usePatientAppointments } from '@/lib/supabase-hooks';
+import { usePatientAppointments, useDoctorById } from '@/lib/supabase-hooks';
 import { supabase } from '@/lib/supabase';
+
+function AppointmentDetailsModal({ 
+  appointment, 
+  visible, 
+  onClose, 
+  onCancel 
+}: { 
+  appointment: any; 
+  visible: boolean; 
+  onClose: () => void;
+  onCancel: (id: string) => void;
+}) {
+  const { data: doctor } = useDoctorById(appointment?.doctor_id);
+
+  if (!appointment) return null;
+
+  const handleOpenMaps = () => {
+    if (doctor?.location) {
+      const address = encodeURIComponent(`${doctor.location}, ${doctor.city} - ${doctor.state}`);
+      const url = Platform.select({
+        ios: `maps:0,0?q=${address}`,
+        android: `geo:0,0?q=${address}`,
+        web: `https://www.google.com/maps/search/?api=1&query=${address}`
+      });
+      Linking.openURL(url || '');
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'scheduled':
+        return { bg: '#ECFDF5', text: Colors.light.success, label: 'Confirmada' };
+      case 'completed':
+        return { bg: '#F3F4F6', text: '#6B7280', label: 'Realizada' };
+      case 'cancelled':
+        return { bg: '#FEF2F2', text: '#EF4444', label: 'Cancelada' };
+      default:
+        return { bg: '#F3F4F6', text: '#6B7280', label: 'Pendente' };
+    }
+  };
+
+  const statusInfo = getStatusColor(appointment.status);
+
+  // Parse beneficiary info from notes if needed
+  let beneficiaryName = appointment.beneficiary_name;
+  let beneficiaryPhone = appointment.beneficiary_phone;
+
+  if (!appointment.is_for_self && !beneficiaryName && appointment.notes) {
+    const nameMatch = appointment.notes.match(/Beneficiário: (.*?)(?: \| |$)/);
+    const phoneMatch = appointment.notes.match(/Telefone: (.*?)(?: \| |$)/);
+    if (nameMatch) beneficiaryName = nameMatch[1];
+    if (phoneMatch) beneficiaryPhone = phoneMatch[1];
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Detalhes da Consulta</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={24} color={Colors.light.text} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            {/* Status Badge */}
+            <View style={[styles.modalStatusBadge, { backgroundColor: statusInfo.bg }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusInfo.text }]} />
+              <Text style={[styles.statusText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
+            </View>
+
+            {/* Doctor Info */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Profissional</Text>
+              <View style={styles.doctorProfile}>
+                <View style={styles.avatarPlaceholder}>
+                   {/* In a real app we would use Image here, but text avatar is fine for now if no image */}
+                   <Text style={styles.avatarText}>{appointment.doctor_name?.charAt(0)}</Text>
+                </View>
+                <View style={styles.doctorTextInfo}>
+                  <Text style={styles.modalDoctorName}>{appointment.doctor_name}</Text>
+                  <Text style={styles.modalSpecialty}>{appointment.specialty_name || 'Especialista'}</Text>
+                  {doctor?.crm && <Text style={styles.crmText}>CRM: {doctor.crm}</Text>}
+                </View>
+              </View>
+            </View>
+
+            {/* Date & Time */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Data e Horário</Text>
+              <View style={styles.row}>
+                <Calendar size={20} color={Colors.light.primary} />
+                <Text style={styles.rowText}>
+                  {new Date(appointment.appointment_date).toLocaleDateString('pt-BR', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+              <View style={[styles.row, { marginTop: 8 }]}>
+                <Clock size={20} color={Colors.light.primary} />
+                <Text style={styles.rowText}>{appointment.appointment_time?.slice(0, 5)}h</Text>
+              </View>
+            </View>
+
+            {/* Service */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Procedimento</Text>
+              <Text style={styles.serviceTitle}>{appointment.service_name}</Text>
+              {appointment.service_description && (
+                <Text style={styles.serviceDesc}>{appointment.service_description}</Text>
+              )}
+              <Text style={styles.priceText}>
+                R$ {appointment.price ? Number(appointment.price).toFixed(2) : '0.00'}
+              </Text>
+            </View>
+
+            {/* Location */}
+            {doctor && (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Localização</Text>
+                <View style={styles.locationContainer}>
+                  <MapPin size={20} color={Colors.light.textSecondary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.locationText}>
+                      {doctor.location || 'Endereço não informado'}
+                    </Text>
+                    {(doctor.city || doctor.state) && (
+                      <Text style={styles.cityText}>{doctor.city} - {doctor.state}</Text>
+                    )}
+                  </View>
+                </View>
+                
+                {doctor.location && (
+                  <TouchableOpacity style={styles.mapButton} onPress={handleOpenMaps}>
+                    <Navigation size={18} color="#FFF" />
+                    <Text style={styles.mapButtonText}>Abrir no Maps</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Beneficiary */}
+            {!appointment.is_for_self && beneficiaryName && (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Paciente (Beneficiário)</Text>
+                <View style={styles.beneficiaryBox}>
+                  <Users size={20} color={Colors.light.primary} />
+                  <View>
+                    <Text style={styles.beneficiaryNameLarge}>{beneficiaryName}</Text>
+                    {beneficiaryPhone && (
+                      <Text style={styles.beneficiaryPhoneLarge}>{beneficiaryPhone}</Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+
+          </ScrollView>
+
+          {/* Footer Actions */}
+          <View style={styles.modalFooter}>
+             {appointment.status === 'scheduled' && (
+                <TouchableOpacity 
+                  style={styles.modalCancelBtn}
+                  onPress={() => {
+                    onCancel(appointment.id);
+                    onClose();
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancelar Consulta</Text>
+                </TouchableOpacity>
+             )}
+             
+             <TouchableOpacity style={styles.closeModalBtn} onPress={onClose}>
+               <Text style={styles.closeModalText}>Fechar</Text>
+             </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function AppointmentsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: appointments, isLoading } = usePatientAppointments(user?.id);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
 
   const handleCancelAppointment = async (appointmentId: string) => {
     Alert.alert(
@@ -94,8 +284,25 @@ export default function AppointmentsScreen() {
         ) : appointments && appointments.length > 0 ? (
           appointments.map((appointment: any) => {
             const statusInfo = getStatusColor(appointment.status);
+            
+            // Parse beneficiary info
+            let beneficiaryName = appointment.beneficiary_name;
+            let beneficiaryPhone = appointment.beneficiary_phone;
+
+            if (!appointment.is_for_self && !beneficiaryName && appointment.notes) {
+              const nameMatch = appointment.notes.match(/Beneficiário: (.*?)(?: \| |$)/);
+              const phoneMatch = appointment.notes.match(/Telefone: (.*?)(?: \| |$)/);
+              if (nameMatch) beneficiaryName = nameMatch[1];
+              if (phoneMatch) beneficiaryPhone = phoneMatch[1];
+            }
+
             return (
-              <View key={appointment.id} style={styles.appointmentCard}>
+              <TouchableOpacity 
+                key={appointment.id} 
+                style={styles.appointmentCard}
+                onPress={() => setSelectedAppointment(appointment)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.appointmentHeader}>
                   <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
                     <View style={[styles.statusDot, { backgroundColor: statusInfo.text }]} />
@@ -110,14 +317,14 @@ export default function AppointmentsScreen() {
                 <Text style={styles.specialty}>{appointment.specialty_name || 'Clínico Geral'}</Text>
                 <Text style={styles.serviceName}>{appointment.service_name}</Text>
 
-                {!appointment.is_for_self && appointment.beneficiary_name && (
+                {!appointment.is_for_self && beneficiaryName && (
                   <View style={styles.beneficiaryBadge}>
                     <Users size={14} color={Colors.light.primary} />
                     <View style={styles.beneficiaryInfo}>
                       <Text style={styles.beneficiaryLabel}>Consulta para:</Text>
-                      <Text style={styles.beneficiaryName}>{appointment.beneficiary_name}</Text>
-                      {appointment.beneficiary_phone && (
-                        <Text style={styles.beneficiaryPhone}>{appointment.beneficiary_phone}</Text>
+                      <Text style={styles.beneficiaryName}>{beneficiaryName}</Text>
+                      {beneficiaryPhone && (
+                        <Text style={styles.beneficiaryPhone}>{beneficiaryPhone}</Text>
                       )}
                     </View>
                   </View>
@@ -146,7 +353,7 @@ export default function AppointmentsScreen() {
                     <Text style={styles.cancelBtnText}>Cancelar Consulta</Text>
                   </TouchableOpacity>
                 )}
-              </View>
+              </TouchableOpacity>
             );
           })
         ) : (
@@ -159,6 +366,13 @@ export default function AppointmentsScreen() {
           </View>
         )}
       </ScrollView>
+
+      <AppointmentDetailsModal 
+        appointment={selectedAppointment}
+        visible={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+        onCancel={handleCancelAppointment}
+      />
     </SafeAreaView>
   );
 }
@@ -328,5 +542,194 @@ const styles = StyleSheet.create({
   beneficiaryPhone: {
     fontSize: 12,
     color: Colors.light.textSecondary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  modalScroll: {
+    padding: 20,
+  },
+  modalStatusBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  doctorProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  doctorTextInfo: {
+    flex: 1,
+  },
+  modalDoctorName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  modalSpecialty: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  crmText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rowText: {
+    fontSize: 16,
+    color: Colors.light.text,
+    textTransform: 'capitalize',
+  },
+  serviceTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  serviceDesc: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  priceText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  locationText: {
+    fontSize: 15,
+    color: Colors.light.text,
+    fontWeight: '500',
+  },
+  cityText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.light.primary,
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  mapButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  beneficiaryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.light.background,
+    padding: 16,
+    borderRadius: 12,
+  },
+  beneficiaryNameLarge: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  beneficiaryPhoneLarge: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    gap: 12,
+  },
+  modalCancelBtn: {
+    paddingVertical: 14,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  modalCancelText: {
+    color: '#EF4444',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  closeModalBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  closeModalText: {
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
