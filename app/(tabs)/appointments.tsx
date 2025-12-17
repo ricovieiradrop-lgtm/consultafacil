@@ -230,10 +230,8 @@ export default function AppointmentsScreen() {
               .eq('id', appointmentId);
 
             if (!error) {
-              queryClient.removeQueries({ 
-                predicate: (query) => 
-                  query.queryKey[0] === 'patient-appointments'
-              });
+              await queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+              await queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
               Alert.alert('Sucesso', 'Consulta cancelada com sucesso.');
             } else {
               Alert.alert('Erro', 'Não foi possível cancelar a consulta.');
@@ -263,12 +261,11 @@ export default function AppointmentsScreen() {
               .eq('id', appointmentId);
 
             if (!error) {
-              queryClient.removeQueries({ 
-                predicate: (query) => 
-                  query.queryKey[0] === 'patient-appointments'
-              });
+              await queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+              await queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
               Alert.alert('Sucesso', 'Consulta removida com sucesso.');
             } else {
+              console.error('Error deleting appointment:', error);
               Alert.alert('Erro', 'Não foi possível remover a consulta.');
             }
           },
@@ -315,7 +312,13 @@ export default function AppointmentsScreen() {
             <Text style={styles.loadingText}>Carregando consultas...</Text>
           </View>
         ) : appointments && appointments.length > 0 ? (
-          appointments.map((appointment: any) => {
+          [...appointments]
+            .sort((a: any, b: any) => {
+              if (a.status === 'scheduled' && b.status !== 'scheduled') return -1;
+              if (a.status !== 'scheduled' && b.status === 'scheduled') return 1;
+              return new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime();
+            })
+            .map((appointment: any) => {
             const statusInfo = getStatusColor(appointment.status);
             
             // Parse beneficiary info

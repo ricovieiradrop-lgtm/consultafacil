@@ -113,13 +113,13 @@ export default function HomeScreen() {
         {/* PROMO */}
         <View style={styles.promoContainer}>
           <LinearGradient
-            colors={['#3D6B64', '#4A7D75']}
+            colors={[Colors.light.primary, Colors.light.primaryDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.promoCard}
           >
             <View style={styles.promoContent}>
-              <Text style={styles.promoTitle}>Procurando o{"\n"}médico ideal?</Text>
+              <Text style={styles.promoTitle}>Procurando o{"\n"}Médico ideal?</Text>
               <TouchableOpacity 
                 style={styles.promoBtn} 
                 onPress={() => router.push('/search')}
@@ -271,9 +271,9 @@ const styles = StyleSheet.create({
   },
   promoTitle: {
     color: '#fff',
-    fontSize: 17,
+    fontSize: 22,
     fontWeight: '700',
-    lineHeight: 24,
+    lineHeight: 30,
     marginBottom: 16,
   },
   promoBtn: {
@@ -289,16 +289,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   promoImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     overflow: 'hidden',
     backgroundColor: '#fff',
   },
   promoImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   section: { paddingHorizontal: 20, marginTop: 24 },
   sectionHeader: {

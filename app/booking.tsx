@@ -19,7 +19,7 @@ import { X, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, User, Users } f
 import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
-import { useDoctorAvailability, useDoctorAppointments, usePatientAppointments } from '@/lib/supabase-hooks';
+import { useDoctorAvailability, useDoctorAppointments } from '@/lib/supabase-hooks';
 
 const { height } = Dimensions.get('window');
 
@@ -77,7 +77,6 @@ export default function BookingScreen() {
 
   const { data: availability } = useDoctorAvailability(doctorId);
   const { data: existingAppointments } = useDoctorAppointments(doctorId, selectedDate || undefined);
-  const { data: patientAppointments, refetch: refetchPatientAppointments } = usePatientAppointments(userId || undefined);
 
   useEffect(() => {
     const getUserId = async () => {
@@ -88,27 +87,36 @@ export default function BookingScreen() {
   }, []);
 
   useEffect(() => {
-    if (userId && refetchPatientAppointments) {
-      console.log('🔄 Refetching patient appointments for booking screen');
-      queryClient.removeQueries({
-        predicate: (query) => query.queryKey[0] === 'patient-appointments'
-      });
-      refetchPatientAppointments();
-    }
-  }, [userId, doctorId, refetchPatientAppointments, queryClient]);
+    const checkExistingAppointments = async () => {
+      if (!userId || !doctorId || isRescheduling) return;
 
-  useEffect(() => {
-    if (!patientAppointments || !doctorId) return;
+      console.log('🔍 Checking for existing appointments with doctor:', doctorId);
+      
+      const { data: appointments, error } = await supabase
+        .from('appointment_details')
+        .select('*')
+        .eq('patient_id', userId)
+        .eq('doctor_id', doctorId)
+        .eq('status', 'scheduled');
 
-    const scheduledAppointment = patientAppointments.find(
-      (apt: any) => apt.doctor_id === doctorId && apt.status === 'scheduled'
-    );
+      if (error) {
+        console.error('Error checking appointments:', error);
+        return;
+      }
 
-    if (scheduledAppointment && !isRescheduling) {
-      setExistingAppointment(scheduledAppointment);
-      setShowExistingAppointment(true);
-    }
-  }, [patientAppointments, doctorId, isRescheduling]);
+      console.log('📊 Found scheduled appointments:', appointments?.length || 0);
+
+      if (appointments && appointments.length > 0) {
+        setExistingAppointment(appointments[0]);
+        setShowExistingAppointment(true);
+      } else {
+        setExistingAppointment(null);
+        setShowExistingAppointment(false);
+      }
+    };
+
+    checkExistingAppointments();
+  }, [userId, doctorId, isRescheduling]);
 
   const availableDates = useMemo(() => {
     return generateAvailableDates(availability || []);
