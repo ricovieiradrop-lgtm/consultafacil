@@ -8,6 +8,7 @@ export interface Profile {
   id: string;
   full_name: string;
   phone: string;
+  email?: string;
   cpf: string;
   role: 'patient' | 'doctor' | 'admin';
   avatar_url?: string;
@@ -174,6 +175,45 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return { phone };
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    console.log('📧 Auth: Signing in with email', email);
+    
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('❌ Auth: Error signing in with email', error);
+      throw error;
+    }
+
+    console.log('✅ Auth: Email sign in successful');
+    return { session: data.session, user: data.user };
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    console.log('📧 Auth: Signing up with email', email);
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: 'patient',
+        },
+      },
+    });
+
+    if (error) {
+      console.error('❌ Auth: Error signing up with email', error);
+      throw error;
+    }
+
+    console.log('✅ Auth: Email sign up successful');
+    return { session: data.session, user: data.user };
+  };
+
   const verifyOTP = async (phone: string, token: string) => {
     console.log('🔑 Auth: Verifying OTP for', phone);
     
@@ -185,7 +225,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     if (error) {
       console.error('❌ Auth: Error verifying OTP', error);
-      console.error('❌ Auth: Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
 
@@ -196,10 +235,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     console.log('✅ Auth: OTP verified, user authenticated');
     console.log('✅ Auth: User ID:', data.user.id);
-    console.log('✅ Auth: User phone:', data.user.phone);
-    console.log('✅ Auth: User metadata:', JSON.stringify(data.user.user_metadata, null, 2));
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
       console.log('🔍 Auth: Checking if profile exists for user', data.user.id);
@@ -209,15 +246,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         .eq('id', data.user.id)
         .single();
 
-      console.log('🔍 Auth: Profile query result:', existingProfile);
-      console.log('🔍 Auth: Profile query error:', profileError);
-
       if (existingProfile && !profileError) {
-        console.log('✅ Auth: Found existing profile');
-        console.log('✅ Auth: Profile role:', existingProfile.role);
-        console.log('✅ Auth: Profile name:', existingProfile.full_name);
-        console.log('✅ Auth: Profile phone:', existingProfile.phone);
-        console.log('✅ Auth: Profile CPF:', existingProfile.cpf);
+        console.log('✅ Auth: Found existing profile with role:', existingProfile.role);
         
         setAuthState({
           session: data.session,
@@ -227,11 +257,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           isOnboarding: false,
         });
 
-        return { session: data.session, user: data.user };
+        return { session: data.session, user: data.user, hasProfile: true };
       }
     } catch (error) {
       console.log('⚠️ Auth: Error checking profile:', error);
-      console.log('⚠️ Auth: Error details:', JSON.stringify(error, null, 2));
     }
 
     console.log('⚠️ Auth: User needs to complete profile');
@@ -243,12 +272,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       isOnboarding: true,
     });
 
-    return { session: data.session, user: data.user };
+    return { session: data.session, user: data.user, hasProfile: false };
   };
 
   const completeProfile = async (profileData: {
     full_name: string;
     cpf: string;
+    email?: string;
   }) => {
     if (!authState.user) {
       console.error('❌ Auth: No user in state');
@@ -256,21 +286,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
 
     console.log('👤 Auth: Completing profile for user', authState.user.id);
-    console.log('👤 Auth: User phone:', authState.user.phone);
-    console.log('👤 Auth: Profile data:', profileData);
 
     const profileToInsert = {
       id: authState.user.id,
       full_name: profileData.full_name,
       cpf: profileData.cpf,
       phone: authState.user.phone || '',
+      email: profileData.email || authState.user.email || '',
       role: 'patient' as const,
     };
 
     console.log('👤 Auth: Inserting profile:', JSON.stringify(profileToInsert, null, 2));
 
     try {
-      console.log('👤 Auth: Checking if profile already exists...');
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('*')
@@ -278,14 +306,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         .single();
 
       if (existingProfile) {
-        console.log('⚠️ Auth: Profile already exists!', existingProfile);
-        console.log('⚠️ Auth: Updating existing profile instead...');
+        console.log('⚠️ Auth: Profile already exists, updating...');
         
         const { data: updatedProfile, error: updateError } = await supabase
           .from('profiles')
           .update({
             full_name: profileData.full_name,
             cpf: profileData.cpf,
+            email: profileData.email || existingProfile.email,
           })
           .eq('id', authState.user.id)
           .select()
@@ -293,7 +321,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
         if (updateError) {
           console.error('❌ Auth: Error updating profile', updateError);
-          console.error('❌ Auth: Error details:', JSON.stringify(updateError, null, 2));
           throw updateError;
         }
 
@@ -312,7 +339,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
     }
 
-    console.log('👤 Auth: No existing profile, creating new one...');
+    console.log('👤 Auth: Creating new profile...');
 
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -322,14 +349,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     if (error) {
       console.error('❌ Auth: Error creating profile', error);
-      console.error('❌ Auth: Error code:', error.code);
-      console.error('❌ Auth: Error message:', error.message);
-      console.error('❌ Auth: Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
 
     console.log('✅ Auth: Profile created successfully');
-    console.log('✅ Auth: Created profile:', JSON.stringify(profile, null, 2));
     
     setAuthState(prev => ({
       ...prev,
@@ -368,6 +391,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return updatedProfile;
   };
 
+  const refreshProfile = async () => {
+    if (!authState.user) return;
+    await loadProfile(authState.user.id);
+  };
+
   const signOut = async () => {
     console.log('🚪 Auth: Signing out');
     
@@ -392,9 +420,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   return {
     ...authState,
     signInWithPhone,
+    signInWithEmail,
+    signUpWithEmail,
     verifyOTP,
     completeProfile,
     updateProfile,
+    refreshProfile,
     signOut,
   };
 });

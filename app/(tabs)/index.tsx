@@ -14,15 +14,13 @@ import { useRouter } from 'expo-router';
 import {
   Search,
   SlidersHorizontal,
-  MapPin,
   Star,
-  HeartPulse,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
 import { useSpecialties, useDoctors } from '@/lib/supabase-hooks';
-import { specialties as mockSpecialties } from '@/mocks/specialties';
+
 import { doctors as mockDoctors } from '@/mocks/doctors';
 
 const { width } = Dimensions.get('window');
@@ -33,28 +31,23 @@ export default function HomeScreen() {
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: specialtiesData } = useSpecialties();
+  useSpecialties();
   const { data: doctorsData } = useDoctors();
 
-  const specialties = specialtiesData?.length ? specialtiesData : mockSpecialties;
   const doctors = doctorsData?.length ? doctorsData : mockDoctors;
 
   const featuredDoctors = doctors.slice(0, 4);
 
-  function handleBookDoctor(doctor: any) {
-    const serviceId =
-      doctor.service_id ||
-      doctor.default_service_id ||
-      doctor.services?.[0]?.id;
+  function handleDoctorPress(doctorId: string) {
+    router.push(`/doctor/${doctorId}`);
+  }
 
-    const price =
-      doctor.price ||
-      doctor.default_price ||
-      doctor.services?.[0]?.price ||
-      100;
+  function handleBookDoctor(doctor: any) {
+    const serviceId = doctor.services?.[0]?.id;
+    const price = doctor.services?.[0]?.price || 200;
 
     if (!doctor.id || !serviceId) {
-      console.error('Doctor or service missing', doctor);
+      router.push(`/doctor/${doctor.id}`);
       return;
     }
 
@@ -63,7 +56,7 @@ export default function HomeScreen() {
       params: {
         doctorId: doctor.id,
         serviceId,
-        price,
+        price: price.toString(),
       },
     });
   }
@@ -101,12 +94,17 @@ export default function HomeScreen() {
 
           <View style={styles.doctorsGrid}>
             {featuredDoctors.map((doctor) => (
-              <View key={doctor.id} style={styles.doctorCard}>
+              <TouchableOpacity 
+                key={doctor.id} 
+                style={styles.doctorCard}
+                onPress={() => handleDoctorPress(doctor.id)}
+                activeOpacity={0.7}
+              >
                 <Image source={{ uri: doctor.avatar }} style={styles.doctorImage} />
 
                 <View style={styles.doctorInfo}>
-                  <Text style={styles.doctorName}>{doctor.name}</Text>
-                  <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
+                  <Text style={styles.doctorName} numberOfLines={1}>{doctor.name}</Text>
+                  <Text style={styles.doctorSpecialty} numberOfLines={1}>{doctor.specialty}</Text>
 
                   <View style={styles.doctorRating}>
                     <Star size={14} color="#FFA500" fill="#FFA500" />
@@ -115,12 +113,15 @@ export default function HomeScreen() {
 
                   <TouchableOpacity
                     style={styles.bookBtn}
-                    onPress={() => handleBookDoctor(doctor)}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleBookDoctor(doctor);
+                    }}
                   >
                     <Text style={styles.bookBtnText}>Agendar</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>

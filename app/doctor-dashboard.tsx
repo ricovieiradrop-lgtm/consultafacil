@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -27,9 +28,21 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useUser } from '@/contexts/user';
+import { useAuth } from '@/contexts/auth';
 import { useRouter } from 'expo-router';
-import { Service } from '@/types';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  useDoctorServices,
+  useCreateService,
+  useDeleteService,
+  useDoctorAvailability,
+  useSaveDoctorAvailability,
+  useDoctorAppointmentsList,
+  useUpdateAppointmentStatus,
+  useDoctorProfile,
+  useUpdateDoctorProfile,
+  useSpecialties,
+} from '@/lib/supabase-hooks';
 
 type TabType = 'profile' | 'procedures' | 'schedule' | 'appointments';
 
@@ -39,23 +52,17 @@ type DaySchedule = {
 };
 
 type WeekSchedule = {
-  monday: DaySchedule;
-  tuesday: DaySchedule;
-  wednesday: DaySchedule;
-  thursday: DaySchedule;
-  friday: DaySchedule;
-  saturday: DaySchedule;
-  sunday: DaySchedule;
+  [key: string]: DaySchedule;
 };
 
 const DAYS = [
-  { key: 'monday' as const, label: 'Segunda' },
-  { key: 'tuesday' as const, label: 'Terça' },
-  { key: 'wednesday' as const, label: 'Quarta' },
-  { key: 'thursday' as const, label: 'Quinta' },
-  { key: 'friday' as const, label: 'Sexta' },
-  { key: 'saturday' as const, label: 'Sábado' },
-  { key: 'sunday' as const, label: 'Domingo' },
+  { key: 'sunday', label: 'Domingo', dayOfWeek: 0 },
+  { key: 'monday', label: 'Segunda', dayOfWeek: 1 },
+  { key: 'tuesday', label: 'Terça', dayOfWeek: 2 },
+  { key: 'wednesday', label: 'Quarta', dayOfWeek: 3 },
+  { key: 'thursday', label: 'Quinta', dayOfWeek: 4 },
+  { key: 'friday', label: 'Sexta', dayOfWeek: 5 },
+  { key: 'saturday', label: 'Sábado', dayOfWeek: 6 },
 ];
 
 const TIME_SLOTS = [
@@ -66,30 +73,35 @@ const TIME_SLOTS = [
 ];
 
 export default function DoctorDashboardScreen() {
-  const { user, updateUser, setViewMode, realRole } = useUser();
+  const { user, setViewMode, realRole } = useUser();
+  const { profile, updateProfile } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [appointmentsFilter, setAppointmentsFilter] = useState<'upcoming' | 'completed'>('upcoming');
 
+  const doctorId = profile?.id;
+
+  const { data: doctorProfile, isLoading: profileLoading } = useDoctorProfile(doctorId);
+  const { data: services, isLoading: servicesLoading } = useDoctorServices(doctorId);
+  const { data: availability, isLoading: availabilityLoading } = useDoctorAvailability(doctorId);
+  const { data: appointments, isLoading: appointmentsLoading } = useDoctorAppointmentsList(doctorId);
+  const { data: specialties } = useSpecialties();
+
+  const createServiceMutation = useCreateService();
+  const deleteServiceMutation = useDeleteService();
+  const saveAvailabilityMutation = useSaveDoctorAvailability();
+  const updateStatusMutation = useUpdateAppointmentStatus();
+  const updateDoctorMutation = useUpdateDoctorProfile();
+
   const [profileForm, setProfileForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
+    name: '',
+    phone: '',
     crm: '',
     specialty: '',
+    specialtyId: '',
     bio: '',
-    location: user?.location || '',
+    location: '',
   });
-
-  const [procedures, setProcedures] = useState<Service[]>([
-    {
-      id: '1',
-      name: 'Consulta Geral',
-      description: 'Consulta médica geral',
-      price: 200,
-      duration: 30,
-    },
-  ]);
 
   const [newProcedure, setNewProcedure] = useState({
     name: '',
@@ -99,66 +111,75 @@ export default function DoctorDashboardScreen() {
   });
 
   const [schedule, setSchedule] = useState<WeekSchedule>({
+    sunday: { enabled: false, slots: [] },
     monday: { enabled: true, slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'] },
     tuesday: { enabled: true, slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'] },
     wednesday: { enabled: true, slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'] },
     thursday: { enabled: true, slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'] },
     friday: { enabled: true, slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'] },
     saturday: { enabled: false, slots: [] },
-    sunday: { enabled: false, slots: [] },
   });
 
-  const mockAppointments = [
-    {
-      id: '1',
-      patientName: 'João Silva',
-      service: 'Consulta Geral',
-      date: '2025-12-20',
-      time: '10:00',
-      status: 'upcoming' as const,
-      price: 200,
-    },
-    {
-      id: '2',
-      patientName: 'Maria Santos',
-      service: 'Consulta de Retorno',
-      date: '2025-12-22',
-      time: '14:30',
-      status: 'upcoming' as const,
-      price: 150,
-    },
-    {
-      id: '3',
-      patientName: 'Pedro Oliveira',
-      service: 'Consulta Geral',
-      date: '2025-12-10',
-      time: '09:00',
-      status: 'completed' as const,
-      price: 200,
-    },
-    {
-      id: '4',
-      patientName: 'Ana Costa',
-      service: 'Consulta Geral',
-      date: '2025-12-12',
-      time: '11:00',
-      status: 'completed' as const,
-      price: 200,
-    },
-    {
-      id: '5',
-      patientName: 'Carlos Lima',
-      service: 'Consulta de Retorno',
-      date: '2025-12-14',
-      time: '15:30',
-      status: 'completed' as const,
-      price: 150,
-    },
-  ];
+  useEffect(() => {
+    if (doctorProfile) {
+      const profileData = doctorProfile.profiles as any;
+      const specialtyData = doctorProfile.specialties as any;
+      
+      setProfileForm({
+        name: profileData?.full_name || user?.name || '',
+        phone: profileData?.phone || user?.phone || '',
+        crm: doctorProfile.crm || '',
+        specialty: specialtyData?.name || '',
+        specialtyId: doctorProfile.specialty_id || '',
+        bio: doctorProfile.bio || '',
+        location: profileData?.location || user?.location || '',
+      });
+    } else if (profile) {
+      setProfileForm(prev => ({
+        ...prev,
+        name: profile.full_name || '',
+        phone: profile.phone || '',
+        location: profile.location || '',
+      }));
+    }
+  }, [doctorProfile, profile, user]);
 
-  const filteredAppointments = mockAppointments.filter(
-    (apt) => apt.status === appointmentsFilter
-  );
+  useEffect(() => {
+    if (availability && availability.length > 0) {
+      const newSchedule: WeekSchedule = {
+        sunday: { enabled: false, slots: [] },
+        monday: { enabled: false, slots: [] },
+        tuesday: { enabled: false, slots: [] },
+        wednesday: { enabled: false, slots: [] },
+        thursday: { enabled: false, slots: [] },
+        friday: { enabled: false, slots: [] },
+        saturday: { enabled: false, slots: [] },
+      };
+
+      availability.forEach((slot) => {
+        const dayKey = DAYS.find(d => d.dayOfWeek === slot.day_of_week)?.key;
+        if (dayKey && newSchedule[dayKey]) {
+          newSchedule[dayKey].enabled = true;
+          if (!newSchedule[dayKey].slots.includes(slot.start_time.slice(0, 5))) {
+            newSchedule[dayKey].slots.push(slot.start_time.slice(0, 5));
+          }
+        }
+      });
+
+      Object.keys(newSchedule).forEach(key => {
+        newSchedule[key].slots.sort();
+      });
+
+      setSchedule(newSchedule);
+    }
+  }, [availability]);
+
+  const filteredAppointments = (appointments || []).filter((apt: any) => {
+    if (appointmentsFilter === 'upcoming') {
+      return apt.status === 'scheduled';
+    }
+    return apt.status === 'completed';
+  });
 
   const handleCancelAppointment = (id: string) => {
     Alert.alert(
@@ -169,9 +190,13 @@ export default function DoctorDashboardScreen() {
         {
           text: 'Sim, Cancelar',
           style: 'destructive',
-          onPress: () => {
-            console.log('Cancelled appointment:', id);
-            Alert.alert('Sucesso', 'Consulta cancelada');
+          onPress: async () => {
+            try {
+              await updateStatusMutation.mutateAsync({ appointmentId: id, status: 'cancelled' });
+              Alert.alert('Sucesso', 'Consulta cancelada');
+            } catch {
+              Alert.alert('Erro', 'Não foi possível cancelar a consulta');
+            }
           },
         },
       ]
@@ -186,71 +211,149 @@ export default function DoctorDashboardScreen() {
         { text: 'Não', style: 'cancel' },
         {
           text: 'Sim, Finalizar',
-          onPress: () => {
-            console.log('Completed appointment:', id);
-            Alert.alert('Sucesso', 'Consulta finalizada');
+          onPress: async () => {
+            try {
+              await updateStatusMutation.mutateAsync({ appointmentId: id, status: 'completed' });
+              Alert.alert('Sucesso', 'Consulta finalizada');
+            } catch {
+              Alert.alert('Erro', 'Não foi possível finalizar a consulta');
+            }
           },
         },
       ]
     );
   };
 
-  const handleSaveProfile = () => {
-    console.log('Saving profile:', profileForm);
-    updateUser({
-      name: profileForm.name,
-      email: profileForm.email,
-      phone: profileForm.phone,
-      location: profileForm.location,
-    });
-    Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+  const handleSaveProfile = async () => {
+    if (!doctorId) return;
+
+    try {
+      await updateProfile({
+        full_name: profileForm.name,
+        phone: profileForm.phone,
+        location: profileForm.location,
+      });
+
+      if (doctorProfile) {
+        await updateDoctorMutation.mutateAsync({
+          doctorId,
+          doctorUpdates: {
+            crm: profileForm.crm,
+            specialty_id: profileForm.specialtyId || undefined,
+            bio: profileForm.bio,
+          },
+        });
+      }
+
+      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Erro', 'Não foi possível salvar o perfil');
+    }
   };
 
-  const handleAddProcedure = () => {
-    if (!newProcedure.name || !newProcedure.price) {
+  const handleAddProcedure = async () => {
+    if (!newProcedure.name || !newProcedure.price || !doctorId) {
       Alert.alert('Erro', 'Preencha nome e preço do procedimento');
       return;
     }
 
-    const procedure: Service = {
-      id: Date.now().toString(),
-      name: newProcedure.name,
-      description: newProcedure.description,
-      price: parseFloat(newProcedure.price),
-      duration: parseInt(newProcedure.duration),
-    };
+    try {
+      await createServiceMutation.mutateAsync({
+        doctor_id: doctorId,
+        name: newProcedure.name,
+        description: newProcedure.description || undefined,
+        price: parseFloat(newProcedure.price),
+        duration: parseInt(newProcedure.duration) || 30,
+      });
 
-    setProcedures([...procedures, procedure]);
-    setNewProcedure({ name: '', description: '', price: '', duration: '30' });
-    Alert.alert('Sucesso', 'Procedimento adicionado!');
+      setNewProcedure({ name: '', description: '', price: '', duration: '30' });
+      Alert.alert('Sucesso', 'Procedimento adicionado!');
+    } catch (error) {
+      console.error('Error adding procedure:', error);
+      Alert.alert('Erro', 'Não foi possível adicionar o procedimento');
+    }
   };
 
-  const handleDeleteProcedure = (id: string) => {
-    setProcedures(procedures.filter((p) => p.id !== id));
+  const handleDeleteProcedure = async (serviceId: string) => {
+    if (!doctorId) return;
+
+    Alert.alert(
+      'Excluir Procedimento',
+      'Tem certeza que deseja excluir este procedimento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteServiceMutation.mutateAsync({ serviceId, doctorId });
+              Alert.alert('Sucesso', 'Procedimento excluído');
+            } catch {
+              Alert.alert('Erro', 'Não foi possível excluir o procedimento');
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const toggleDay = (day: keyof WeekSchedule) => {
-    setSchedule({
-      ...schedule,
-      [day]: { ...schedule[day], enabled: !schedule[day].enabled },
+  const toggleDay = (day: string) => {
+    setSchedule(prev => ({
+      ...prev,
+      [day]: { ...prev[day], enabled: !prev[day].enabled },
+    }));
+  };
+
+  const toggleSlot = (day: string, slot: string) => {
+    setSchedule(prev => {
+      const daySchedule = prev[day];
+      const slots = daySchedule.slots.includes(slot)
+        ? daySchedule.slots.filter((s) => s !== slot)
+        : [...daySchedule.slots, slot].sort();
+
+      return {
+        ...prev,
+        [day]: { ...daySchedule, slots },
+      };
     });
   };
 
-  const toggleSlot = (day: keyof WeekSchedule, slot: string) => {
-    const daySchedule = schedule[day];
-    const slots = daySchedule.slots.includes(slot)
-      ? daySchedule.slots.filter((s) => s !== slot)
-      : [...daySchedule.slots, slot].sort();
+  const handleSaveSchedule = async () => {
+    if (!doctorId) return;
 
-    setSchedule({
-      ...schedule,
-      [day]: { ...daySchedule, slots },
+    const availabilityRecords: { day_of_week: number; start_time: string; end_time: string; is_active: boolean }[] = [];
+
+    DAYS.forEach(({ key, dayOfWeek }) => {
+      const daySchedule = schedule[key];
+      if (daySchedule.enabled && daySchedule.slots.length > 0) {
+        daySchedule.slots.forEach(slot => {
+          const [hours, minutes] = slot.split(':').map(Number);
+          const endHours = minutes === 30 ? hours + 1 : hours;
+          const endMinutes = minutes === 30 ? 0 : 30;
+          const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+
+          availabilityRecords.push({
+            day_of_week: dayOfWeek,
+            start_time: slot,
+            end_time: endTime,
+            is_active: true,
+          });
+        });
+      }
     });
-  };
 
-  const handleSaveSchedule = () => {
-    console.log('Saving schedule:', schedule);
-    Alert.alert('Sucesso', 'Agenda configurada com sucesso!');
+    try {
+      await saveAvailabilityMutation.mutateAsync({
+        doctorId,
+        availability: availabilityRecords,
+      });
+      Alert.alert('Sucesso', 'Agenda configurada com sucesso!');
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      Alert.alert('Erro', 'Não foi possível salvar a agenda');
+    }
   };
 
   const handleSelectPhoto = async () => {
@@ -265,72 +368,23 @@ export default function DoctorDashboardScreen() {
       }
     }
 
-    Alert.alert(
-      'Foto de Perfil',
-      'Selecione uma opção:',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Galeria',
-          onPress: async () => {
-            try {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-              });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
 
-              if (!result.canceled && result.assets[0]) {
-                const imageUri = result.assets[0].uri;
-                console.log('Selected image:', imageUri);
-                updateUser({ avatar: imageUri });
-                Alert.alert('Sucesso', 'Foto de perfil atualizada!');
-              }
-            } catch (error) {
-              console.error('Error picking image:', error);
-              Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
-            }
-          },
-        },
-        {
-          text: 'Câmera',
-          onPress: async () => {
-            if (Platform.OS === 'web') {
-              Alert.alert('Não disponível', 'Câmera não está disponível na web.');
-              return;
-            }
-
-            const { status } = await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== 'granted') {
-              Alert.alert(
-                'Permissão Necessária',
-                'Precisamos de acesso à câmera para tirar fotos.'
-              );
-              return;
-            }
-
-            try {
-              const result = await ImagePicker.launchCameraAsync({
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-              });
-
-              if (!result.canceled && result.assets[0]) {
-                const imageUri = result.assets[0].uri;
-                console.log('Captured image:', imageUri);
-                updateUser({ avatar: imageUri });
-                Alert.alert('Sucesso', 'Foto de perfil atualizada!');
-              }
-            } catch (error) {
-              console.error('Error taking photo:', error);
-              Alert.alert('Erro', 'Não foi possível tirar a foto.');
-            }
-          },
-        },
-      ]
-    );
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        console.log('Selected image:', imageUri);
+        Alert.alert('Info', 'Upload de imagem será implementado em breve');
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Erro', 'Não foi possível selecionar a imagem.');
+    }
   };
 
   const renderProfileTab = () => (
@@ -348,7 +402,7 @@ export default function DoctorDashboardScreen() {
             <Camera size={20} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
-        <Text style={styles.photoHint}>Recomendado: 400x400px</Text>
+        <Text style={styles.photoHint}>Toque para alterar a foto</Text>
       </View>
 
       <View style={styles.formGroup}>
@@ -358,18 +412,6 @@ export default function DoctorDashboardScreen() {
           value={profileForm.name}
           onChangeText={(text) => setProfileForm({ ...profileForm, name: text })}
           placeholder="Seu nome completo"
-        />
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={profileForm.email}
-          onChangeText={(text) => setProfileForm({ ...profileForm, email: text })}
-          placeholder="seu@email.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
         />
       </View>
 
@@ -396,12 +438,33 @@ export default function DoctorDashboardScreen() {
 
       <View style={styles.formGroup}>
         <Text style={styles.label}>Especialidade</Text>
-        <TextInput
-          style={styles.input}
-          value={profileForm.specialty}
-          onChangeText={(text) => setProfileForm({ ...profileForm, specialty: text })}
-          placeholder="Ex: Cardiologia"
-        />
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.specialtyScroll}
+        >
+          {(specialties || []).map((spec) => (
+            <TouchableOpacity
+              key={spec.id}
+              style={[
+                styles.specialtyChip,
+                profileForm.specialtyId === spec.id && styles.specialtyChipActive,
+              ]}
+              onPress={() => setProfileForm({ 
+                ...profileForm, 
+                specialtyId: spec.id,
+                specialty: spec.name,
+              })}
+            >
+              <Text style={[
+                styles.specialtyChipText,
+                profileForm.specialtyId === spec.id && styles.specialtyChipTextActive,
+              ]}>
+                {spec.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <View style={styles.formGroup}>
@@ -427,8 +490,16 @@ export default function DoctorDashboardScreen() {
         />
       </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-        <Text style={styles.saveButtonText}>Salvar Perfil</Text>
+      <TouchableOpacity 
+        style={styles.saveButton} 
+        onPress={handleSaveProfile}
+        disabled={updateDoctorMutation.isPending}
+      >
+        {updateDoctorMutation.isPending ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.saveButtonText}>Salvar Perfil</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -482,42 +553,62 @@ export default function DoctorDashboardScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.addButton} onPress={handleAddProcedure}>
-          <Plus size={20} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>Adicionar</Text>
+        <TouchableOpacity 
+          style={styles.addButton} 
+          onPress={handleAddProcedure}
+          disabled={createServiceMutation.isPending}
+        >
+          {createServiceMutation.isPending ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <>
+              <Plus size={20} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Adicionar</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
 
       <View style={styles.proceduresList}>
         <Text style={styles.sectionTitle}>Procedimentos Cadastrados</Text>
-        {procedures.map((procedure) => (
-          <View key={procedure.id} style={styles.procedureCard}>
-            <View style={styles.procedureInfo}>
-              <Text style={styles.procedureName}>{procedure.name}</Text>
-              {procedure.description ? (
-                <Text style={styles.procedureDescription}>{procedure.description}</Text>
-              ) : null}
-              <View style={styles.procedureMeta}>
-                <View style={styles.procedureMetaItem}>
-                  <DollarSign size={14} color={Colors.light.primary} />
-                  <Text style={styles.procedurePrice}>
-                    R$ {procedure.price.toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.procedureMetaItem}>
-                  <Clock size={14} color={Colors.light.textSecondary} />
-                  <Text style={styles.procedureDuration}>{procedure.duration} min</Text>
+        
+        {servicesLoading ? (
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        ) : (services || []).length === 0 ? (
+          <View style={styles.emptyState}>
+            <FileText size={48} color={Colors.light.border} />
+            <Text style={styles.emptyStateText}>Nenhum procedimento cadastrado</Text>
+          </View>
+        ) : (
+          (services || []).map((procedure: any) => (
+            <View key={procedure.id} style={styles.procedureCard}>
+              <View style={styles.procedureInfo}>
+                <Text style={styles.procedureName}>{procedure.name}</Text>
+                {procedure.description ? (
+                  <Text style={styles.procedureDescription}>{procedure.description}</Text>
+                ) : null}
+                <View style={styles.procedureMeta}>
+                  <View style={styles.procedureMetaItem}>
+                    <DollarSign size={14} color={Colors.light.primary} />
+                    <Text style={styles.procedurePrice}>
+                      R$ {procedure.price?.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.procedureMetaItem}>
+                    <Clock size={14} color={Colors.light.textSecondary} />
+                    <Text style={styles.procedureDuration}>{procedure.duration} min</Text>
+                  </View>
                 </View>
               </View>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteProcedure(procedure.id)}
+              >
+                <Trash2 size={18} color={Colors.light.error} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeleteProcedure(procedure.id)}
-            >
-              <Trash2 size={18} color={Colors.light.error} />
-            </TouchableOpacity>
-          </View>
-        ))}
+          ))
+        )}
       </View>
     </View>
   );
@@ -538,7 +629,7 @@ export default function DoctorDashboardScreen() {
               appointmentsFilter === 'upcoming' && styles.filterTabTextActive,
             ]}
           >
-            Próximas Consultas
+            Próximas
           </Text>
           <View
             style={[
@@ -552,7 +643,7 @@ export default function DoctorDashboardScreen() {
                 appointmentsFilter === 'upcoming' && styles.filterBadgeTextActive,
               ]}
             >
-              {mockAppointments.filter((a) => a.status === 'upcoming').length}
+              {(appointments || []).filter((a: any) => a.status === 'scheduled').length}
             </Text>
           </View>
         </TouchableOpacity>
@@ -584,13 +675,17 @@ export default function DoctorDashboardScreen() {
                 appointmentsFilter === 'completed' && styles.filterBadgeTextActive,
               ]}
             >
-              {mockAppointments.filter((a) => a.status === 'completed').length}
+              {(appointments || []).filter((a: any) => a.status === 'completed').length}
             </Text>
           </View>
         </TouchableOpacity>
       </View>
 
-      {filteredAppointments.length === 0 ? (
+      {appointmentsLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
+      ) : filteredAppointments.length === 0 ? (
         <View style={styles.emptyAppointments}>
           <AlertCircle size={48} color={Colors.light.border} />
           <Text style={styles.emptyAppointmentsTitle}>
@@ -605,19 +700,19 @@ export default function DoctorDashboardScreen() {
           </Text>
         </View>
       ) : (
-        filteredAppointments.map((appointment) => (
+        filteredAppointments.map((appointment: any) => (
           <View key={appointment.id} style={styles.appointmentCard}>
             <View style={styles.appointmentCardHeader}>
               <View>
                 <Text style={styles.appointmentPatient}>
-                  {appointment.patientName}
+                  {appointment.patient_name}
                 </Text>
                 <Text style={styles.appointmentService}>
-                  {appointment.service}
+                  {appointment.service_name || 'Consulta'}
                 </Text>
               </View>
               <Text style={styles.appointmentPrice}>
-                R$ {appointment.price.toFixed(2)}
+                R$ {appointment.price?.toFixed(2)}
               </Text>
             </View>
 
@@ -625,7 +720,7 @@ export default function DoctorDashboardScreen() {
               <View style={styles.appointmentDetailItem}>
                 <Calendar size={16} color={Colors.light.textSecondary} />
                 <Text style={styles.appointmentDetailText}>
-                  {new Date(appointment.date).toLocaleDateString('pt-BR', {
+                  {new Date(appointment.appointment_date).toLocaleDateString('pt-BR', {
                     day: '2-digit',
                     month: 'long',
                     year: 'numeric',
@@ -635,12 +730,12 @@ export default function DoctorDashboardScreen() {
               <View style={styles.appointmentDetailItem}>
                 <Clock size={16} color={Colors.light.textSecondary} />
                 <Text style={styles.appointmentDetailText}>
-                  {appointment.time}
+                  {appointment.appointment_time?.slice(0, 5)}
                 </Text>
               </View>
             </View>
 
-            {appointment.status === 'upcoming' && (
+            {appointment.status === 'scheduled' && (
               <View style={styles.appointmentActions}>
                 <TouchableOpacity
                   style={[styles.appointmentButton, styles.appointmentButtonComplete]}
@@ -682,59 +777,82 @@ export default function DoctorDashboardScreen() {
         Selecione os dias e horários em que você estará disponível para atendimento
       </Text>
 
-      {DAYS.map(({ key, label }) => (
-        <View key={key} style={styles.dayCard}>
-          <View style={styles.dayHeader}>
-            <TouchableOpacity
-              style={styles.dayToggle}
-              onPress={() => toggleDay(key)}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  schedule[key].enabled && styles.checkboxActive,
-                ]}
-              >
-                {schedule[key].enabled && <Check size={16} color="#FFFFFF" />}
-              </View>
-              <Text style={styles.dayLabel}>{label}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {schedule[key].enabled && (
-            <View style={styles.slotsGrid}>
-              {TIME_SLOTS.map((slot) => {
-                const isSelected = schedule[key].slots.includes(slot);
-                return (
-                  <TouchableOpacity
-                    key={slot}
+      {availabilityLoading ? (
+        <ActivityIndicator size="large" color={Colors.light.primary} />
+      ) : (
+        <>
+          {DAYS.map(({ key, label }) => (
+            <View key={key} style={styles.dayCard}>
+              <View style={styles.dayHeader}>
+                <TouchableOpacity
+                  style={styles.dayToggle}
+                  onPress={() => toggleDay(key)}
+                >
+                  <View
                     style={[
-                      styles.slotChip,
-                      isSelected && styles.slotChipActive,
+                      styles.checkbox,
+                      schedule[key]?.enabled && styles.checkboxActive,
                     ]}
-                    onPress={() => toggleSlot(key, slot)}
                   >
-                    <Text
-                      style={[
-                        styles.slotText,
-                        isSelected && styles.slotTextActive,
-                      ]}
-                    >
-                      {slot}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      ))}
+                    {schedule[key]?.enabled && <Check size={16} color="#FFFFFF" />}
+                  </View>
+                  <Text style={styles.dayLabel}>{label}</Text>
+                </TouchableOpacity>
+              </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSaveSchedule}>
-        <Text style={styles.saveButtonText}>Salvar Agenda</Text>
-      </TouchableOpacity>
+              {schedule[key]?.enabled && (
+                <View style={styles.slotsGrid}>
+                  {TIME_SLOTS.map((slot) => {
+                    const isSelected = schedule[key]?.slots.includes(slot);
+                    return (
+                      <TouchableOpacity
+                        key={slot}
+                        style={[
+                          styles.slotChip,
+                          isSelected && styles.slotChipActive,
+                        ]}
+                        onPress={() => toggleSlot(key, slot)}
+                      >
+                        <Text
+                          style={[
+                            styles.slotText,
+                            isSelected && styles.slotTextActive,
+                          ]}
+                        >
+                          {slot}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          ))}
+
+          <TouchableOpacity 
+            style={styles.saveButton} 
+            onPress={handleSaveSchedule}
+            disabled={saveAvailabilityMutation.isPending}
+          >
+            {saveAvailabilityMutation.isPending ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>Salvar Agenda</Text>
+            )}
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
+
+  if (profileLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <Text style={styles.loadingText}>Carregando...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -759,7 +877,7 @@ export default function DoctorDashboardScreen() {
                 style={[styles.testModeButton, styles.testModeButtonAdmin]}
                 onPress={() => {
                   setViewMode(null);
-                  router.push('/admin-dashboard' as any);
+                  router.push('/admin-dashboard');
                 }}
               >
                 <Text style={[styles.testModeButtonText, styles.testModeButtonTextAdmin]}>Admin</Text>
@@ -804,7 +922,7 @@ export default function DoctorDashboardScreen() {
             ]}
             numberOfLines={1}
           >
-            Procedimentos
+            Serviços
           </Text>
         </TouchableOpacity>
 
@@ -864,6 +982,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.light.background,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: Colors.light.textSecondary,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -886,7 +1015,7 @@ const styles = StyleSheet.create({
     width: 40,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700' as const,
     color: Colors.light.text,
     marginBottom: 8,
@@ -919,7 +1048,7 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     backgroundColor: Colors.light.card,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
@@ -1023,6 +1152,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  specialtyScroll: {
+    marginTop: 4,
+  },
+  specialtyChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginRight: 8,
+  },
+  specialtyChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  specialtyChipText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
+  },
+  specialtyChipTextActive: {
+    color: '#FFFFFF',
+  },
   saveButton: {
     backgroundColor: Colors.light.primary,
     paddingVertical: 16,
@@ -1120,6 +1273,15 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 8,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.light.textSecondary,
   },
   dayCard: {
     backgroundColor: Colors.light.card,

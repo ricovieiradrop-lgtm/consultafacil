@@ -6,31 +6,78 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, MapPin, Star, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
-import { doctors } from '@/mocks/doctors';
+import { useDoctorById } from '@/lib/supabase-hooks';
 
 export default function DoctorProfileScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   
-  const doctor = doctors.find(d => d.id === id);
+  const { data: doctor, isLoading, error } = useDoctorById(id);
 
-  if (!doctor) {
+  if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>Médico não encontrado</Text>
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <Text style={styles.loadingText}>Carregando perfil...</Text>
       </SafeAreaView>
     );
   }
 
+  if (error || !doctor) {
+    return (
+      <SafeAreaView style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Médico não encontrado</Text>
+        <Text style={styles.errorText}>
+          Não foi possível carregar as informações deste médico.
+        </Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Voltar</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  const handleBookService = (serviceId: string, price: number) => {
+    router.push({
+      pathname: '/booking',
+      params: {
+        doctorId: doctor.id,
+        serviceId,
+        price: price.toString(),
+      },
+    });
+  };
+
+  const handleBookDefault = () => {
+    if (doctor.services.length > 0) {
+      const firstService = doctor.services[0];
+      handleBookService(firstService.id, firstService.price);
+    } else {
+      router.push({
+        pathname: '/booking',
+        params: {
+          doctorId: doctor.id,
+          serviceId: 'default',
+          price: '200',
+        },
+      });
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Image source={{ uri: doctor.avatar }} style={styles.headerImage} />
+      <Image 
+        source={{ uri: doctor.avatar }} 
+        style={styles.headerImage} 
+        defaultSource={{ uri: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&h=400&fit=crop' }}
+      />
       
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.6)']}
@@ -61,7 +108,7 @@ export default function DoctorProfileScreen() {
             </View>
             <View style={styles.ratingBadge}>
               <Star size={16} color="#FFA500" fill="#FFA500" />
-              <Text style={styles.ratingText}>{doctor.rating}</Text>
+              <Text style={styles.ratingText}>{doctor.rating || 0}</Text>
             </View>
           </View>
 
@@ -69,14 +116,16 @@ export default function DoctorProfileScreen() {
             <Text style={styles.specialtyText}>{doctor.specialty}</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <MapPin size={16} color={Colors.light.textSecondary} />
-            <Text style={styles.infoText}>{doctor.location}</Text>
-          </View>
+          {doctor.location ? (
+            <View style={styles.infoRow}>
+              <MapPin size={16} color={Colors.light.textSecondary} />
+              <Text style={styles.infoText}>{doctor.location}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{doctor.reviewCount}</Text>
+              <Text style={styles.statValue}>{doctor.reviewCount || 0}</Text>
               <Text style={styles.statLabel}>Avaliações</Text>
             </View>
             <View style={styles.statDivider} />
@@ -91,48 +140,61 @@ export default function DoctorProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sobre</Text>
-            <Text style={styles.bioText}>{doctor.bio}</Text>
-          </View>
+          {doctor.bio ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Sobre</Text>
+              <Text style={styles.bioText}>{doctor.bio}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Serviços e Consultas</Text>
-            {doctor.services.map((service) => (
-              <View key={service.id} style={styles.serviceCard}>
-                <View style={styles.serviceHeader}>
-                  <Text style={styles.serviceName}>{service.name}</Text>
-                  <Text style={styles.servicePrice}>
-                    R$ {service.price.toFixed(2)}
-                  </Text>
-                </View>
-                <Text style={styles.serviceDescription}>
-                  {service.description}
-                </Text>
-                <View style={styles.serviceMeta}>
-                  <View style={styles.serviceMetaItem}>
-                    <Clock size={14} color={Colors.light.textSecondary} />
-                    <Text style={styles.serviceMetaText}>{service.duration} min</Text>
+            {doctor.services.length > 0 ? (
+              doctor.services.map((service) => (
+                <View key={service.id} style={styles.serviceCard}>
+                  <View style={styles.serviceHeader}>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                    <Text style={styles.servicePrice}>
+                      R$ {service.price.toFixed(2)}
+                    </Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.serviceBookBtn}
-                    onPress={() => router.push('/booking' as any)}
-                  >
-                    <Text style={styles.serviceBookText}>Agendar</Text>
-                  </TouchableOpacity>
+                  {service.description ? (
+                    <Text style={styles.serviceDescription}>
+                      {service.description}
+                    </Text>
+                  ) : null}
+                  <View style={styles.serviceMeta}>
+                    <View style={styles.serviceMetaItem}>
+                      <Clock size={14} color={Colors.light.textSecondary} />
+                      <Text style={styles.serviceMetaText}>{service.duration} min</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.serviceBookBtn}
+                      onPress={() => handleBookService(service.id, service.price)}
+                    >
+                      <Text style={styles.serviceBookText}>Agendar</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+              ))
+            ) : (
+              <View style={styles.noServicesCard}>
+                <Text style={styles.noServicesText}>
+                  Este médico ainda não cadastrou serviços.
+                </Text>
+                <Text style={styles.noServicesSubtext}>
+                  Entre em contato para mais informações.
+                </Text>
               </View>
-            ))}
+            )}
           </View>
-
-
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.bookButton}
-          onPress={() => router.push('/booking' as any)}
+          onPress={handleBookDefault}
         >
           <Text style={styles.bookButtonText}>Agendar Consulta</Text>
         </TouchableOpacity>
@@ -145,6 +207,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.light.background,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: Colors.light.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: Colors.light.background,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  backButton: {
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
   },
   headerImage: {
     position: 'absolute',
@@ -348,7 +451,23 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#FFFFFF',
   },
-
+  noServicesCard: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  noServicesText: {
+    fontSize: 15,
+    color: Colors.light.text,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  noServicesSubtext: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+  },
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -369,11 +488,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
     color: '#FFFFFF',
-  },
-  errorText: {
-    fontSize: 16,
-    color: Colors.light.textSecondary,
-    textAlign: 'center',
-    marginTop: 40,
   },
 });

@@ -8,55 +8,74 @@ import {
   Dimensions,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
+import { useDoctorAvailability, useDoctorAppointments } from '@/lib/supabase-hooks';
 
 const { height } = Dimensions.get('window');
 
-const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
-const AVAILABLE_DATES = [
-  '2025-01-20', '2025-01-21', '2025-01-22', '2025-01-23', '2025-01-24',
-  '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31',
-];
-
-const TIME_SLOTS = [
+const DEFAULT_TIME_SLOTS = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
 ];
 
+function generateAvailableDates(availability: { day_of_week: number }[]): string[] {
+  const dates: string[] = [];
+  const today = new Date();
+  const activeDays = availability.map(a => a.day_of_week);
+  
+  for (let i = 1; i <= 60; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    if (activeDays.length === 0 || activeDays.includes(date.getDay())) {
+      dates.push(date.toISOString().split('T')[0]);
+    }
+  }
+  
+  return dates;
+}
+
 export default function BookingScreen() {
   const router = useRouter();
-  const { doctorId, serviceId, price } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  
+  const doctorId = typeof params.doctorId === 'string' ? params.doctorId : undefined;
+  const serviceId = typeof params.serviceId === 'string' ? params.serviceId : undefined;
+  const price = typeof params.price === 'string' ? params.price : undefined;
 
-  const [currentMonth, setCurrentMonth] = useState(new Date(2025, 0, 1));
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 🔒 Blindagem: se veio sem contexto, não continua
-  if (!doctorId || !serviceId || !price) {
-    return (
-      <SafeAreaView style={styles.center}>
-        <Text style={styles.errorTitle}>Médico não encontrado</Text>
-        <Text style={styles.errorText}>
-          Volte e selecione um médico válido para agendar.
-        </Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Voltar</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  const { data: availability } = useDoctorAvailability(doctorId);
+  const { data: existingAppointments } = useDoctorAppointments(doctorId, selectedDate || undefined);
+
+  const availableDates = useMemo(() => {
+    return generateAvailableDates(availability || []);
+  }, [availability]);
+
+  const bookedTimes = useMemo(() => {
+    return (existingAppointments || []).map((apt: any) => apt.appointment_time?.slice(0, 5));
+  }, [existingAppointments]);
+
+  const timeSlots = useMemo(() => {
+    return DEFAULT_TIME_SLOTS.filter(time => !bookedTimes.includes(time));
+  }, [bookedTimes]);
 
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -66,26 +85,32 @@ export default function BookingScreen() {
     const daysInMonth = lastDay.getDate();
     const startWeekDay = firstDay.getDay();
 
-    const days = [];
+    const days: { date: string; day: number; available: boolean }[] = [];
 
     for (let i = 0; i < startWeekDay; i++) {
       days.push({ date: '', day: 0, available: false });
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dateObj = new Date(year, month, day);
+      const isPast = dateObj < today;
+      
       days.push({
         date: dateStr,
         day,
-        available: AVAILABLE_DATES.includes(dateStr),
+        available: !isPast && availableDates.includes(dateStr),
       });
     }
 
     return days;
-  }, [currentMonth]);
+  }, [currentMonth, availableDates]);
 
   const handleConfirmBooking = async () => {
-    if (!selectedDate || !selectedTime) return;
+    if (!selectedDate || !selectedTime || !doctorId || !serviceId || !price) return;
 
     setLoading(true);
 
@@ -110,8 +135,8 @@ export default function BookingScreen() {
     });
 
     if (error) {
-      console.error(error);
-      Alert.alert('Erro', 'Não foi possível agendar a consulta');
+      console.error('Booking error:', error);
+      Alert.alert('Erro', 'Não foi possível agendar a consulta. ' + error.message);
       setLoading(false);
       return;
     }
@@ -119,6 +144,20 @@ export default function BookingScreen() {
     setShowSuccess(true);
     setTimeout(() => router.replace('/(tabs)/appointments'), 2000);
   };
+
+  if (!doctorId || !serviceId || !price) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <Text style={styles.errorTitle}>Dados incompletos</Text>
+        <Text style={styles.errorText}>
+          Volte e selecione um médico e serviço para agendar.
+        </Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   if (showSuccess) {
     return (
@@ -128,7 +167,7 @@ export default function BookingScreen() {
             <CheckCircle size={64} color={Colors.light.success} />
             <Text style={styles.successTitle}>Consulta Agendada!</Text>
             <Text style={styles.successText}>
-              Você pode acompanhar em “Minhas Consultas”.
+              Você pode acompanhar em Minhas Consultas.
             </Text>
           </View>
         </View>
@@ -147,12 +186,12 @@ export default function BookingScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.monthHeader}>
               <TouchableOpacity onPress={() =>
                 setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
               }>
-                <ChevronLeft size={24} />
+                <ChevronLeft size={24} color={Colors.light.text} />
               </TouchableOpacity>
 
               <Text style={styles.monthTitle}>
@@ -162,8 +201,14 @@ export default function BookingScreen() {
               <TouchableOpacity onPress={() =>
                 setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
               }>
-                <ChevronRight size={24} />
+                <ChevronRight size={24} color={Colors.light.text} />
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.weekdaysRow}>
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+                <Text key={day} style={styles.weekdayText}>{day}</Text>
+              ))}
             </View>
 
             <View style={styles.calendarGrid}>
@@ -173,29 +218,49 @@ export default function BookingScreen() {
                   disabled={!d.available}
                   style={[
                     styles.calendarCell,
+                    d.available && styles.calendarCellAvailable,
                     selectedDate === d.date && styles.selectedCell,
                   ]}
-                  onPress={() => setSelectedDate(d.date)}
+                  onPress={() => {
+                    setSelectedDate(d.date);
+                    setSelectedTime(null);
+                  }}
                 >
-                  <Text>{d.day || ''}</Text>
+                  <Text style={[
+                    styles.calendarDayText,
+                    !d.available && d.day > 0 && styles.calendarDayDisabled,
+                    selectedDate === d.date && styles.calendarDaySelected,
+                  ]}>
+                    {d.day || ''}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {selectedDate && (
-              <View style={styles.timeGrid}>
-                {TIME_SLOTS.map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    onPress={() => setSelectedTime(t)}
-                    style={[
-                      styles.timeSlot,
-                      selectedTime === t && styles.timeSlotActive,
-                    ]}
-                  >
-                    <Text>{t}</Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.timeSection}>
+                <Text style={styles.timeSectionTitle}>Horários disponíveis</Text>
+                {timeSlots.length > 0 ? (
+                  <View style={styles.timeGrid}>
+                    {timeSlots.map((t) => (
+                      <TouchableOpacity
+                        key={t}
+                        onPress={() => setSelectedTime(t)}
+                        style={[
+                          styles.timeSlot,
+                          selectedTime === t && styles.timeSlotActive,
+                        ]}
+                      >
+                        <Text style={[
+                          styles.timeSlotText,
+                          selectedTime === t && styles.timeSlotTextActive,
+                        ]}>{t}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.noTimesText}>Nenhum horário disponível nesta data</Text>
+                )}
               </View>
             )}
           </ScrollView>
@@ -203,11 +268,16 @@ export default function BookingScreen() {
           <TouchableOpacity
             disabled={!selectedDate || !selectedTime || loading}
             onPress={handleConfirmBooking}
-            style={styles.confirmBtn}
+            style={[
+              styles.confirmBtn,
+              (!selectedDate || !selectedTime) && styles.confirmBtnDisabled,
+            ]}
           >
-            <Text style={styles.confirmBtnText}>
-              {loading ? 'Agendando...' : 'Confirmar Agendamento'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.confirmBtnText}>Confirmar Agendamento</Text>
+            )}
           </TouchableOpacity>
         </SafeAreaView>
       </View>
@@ -216,7 +286,11 @@ export default function BookingScreen() {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  overlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
   modalContainer: {
     backgroundColor: Colors.light.card,
     borderTopLeftRadius: 24,
@@ -226,43 +300,105 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
   },
-  headerTitle: { fontSize: 20, fontWeight: '700' },
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+  },
   monthHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 20,
   },
-  monthTitle: { fontSize: 18, fontWeight: '700' },
+  monthTitle: { 
+    fontSize: 18, 
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+  },
+  weekdaysRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    marginBottom: 8,
+  },
+  weekdayText: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.light.textSecondary,
+  },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    paddingHorizontal: 10,
   },
   calendarCell: {
-    width: '14.2%',
-    height: 48,
+    width: '14.28%',
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  calendarCellAvailable: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 8,
   },
   selectedCell: {
     backgroundColor: Colors.light.primary,
     borderRadius: 8,
   },
+  calendarDayText: {
+    fontSize: 14,
+    color: Colors.light.text,
+  },
+  calendarDayDisabled: {
+    color: Colors.light.border,
+  },
+  calendarDaySelected: {
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
+  },
+  timeSection: {
+    padding: 20,
+  },
+  timeSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    marginBottom: 12,
+    color: Colors.light.text,
+  },
   timeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 20,
+    gap: 8,
   },
   timeSlot: {
     width: '23%',
     padding: 12,
-    margin: 4,
     borderRadius: 8,
     backgroundColor: Colors.light.background,
+    alignItems: 'center',
   },
   timeSlotActive: {
     backgroundColor: Colors.light.primary,
+  },
+  timeSlotText: {
+    fontSize: 14,
+    color: Colors.light.text,
+  },
+  timeSlotTextActive: {
+    color: '#FFFFFF',
+  },
+  noTimesText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   confirmBtn: {
     backgroundColor: Colors.light.primary,
@@ -271,7 +407,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
   },
-  confirmBtnText: { color: '#fff', fontWeight: '700' },
+  confirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  confirmBtnText: { 
+    color: '#fff', 
+    fontWeight: '700' as const,
+    fontSize: 16,
+  },
   successOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -283,17 +426,44 @@ const styles = StyleSheet.create({
     padding: 32,
     borderRadius: 24,
     alignItems: 'center',
+    marginHorizontal: 40,
   },
-  successTitle: { fontSize: 22, fontWeight: '700', marginTop: 12 },
-  successText: { textAlign: 'center', marginTop: 8 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorTitle: { fontSize: 20, fontWeight: '700' },
-  errorText: { marginTop: 8, color: '#666', textAlign: 'center' },
+  successTitle: { 
+    fontSize: 22, 
+    fontWeight: '700' as const, 
+    marginTop: 12,
+    color: Colors.light.text,
+  },
+  successText: { 
+    textAlign: 'center', 
+    marginTop: 8,
+    color: Colors.light.textSecondary,
+  },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorTitle: { 
+    fontSize: 20, 
+    fontWeight: '700' as const,
+    color: Colors.light.text,
+  },
+  errorText: { 
+    marginTop: 8, 
+    color: Colors.light.textSecondary, 
+    textAlign: 'center',
+  },
   backBtn: {
     marginTop: 20,
     padding: 12,
+    paddingHorizontal: 24,
     backgroundColor: Colors.light.primary,
     borderRadius: 12,
   },
-  backBtnText: { color: '#fff' },
+  backBtnText: { 
+    color: '#fff',
+    fontWeight: '600' as const,
+  },
 });

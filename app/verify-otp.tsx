@@ -65,17 +65,10 @@ export default function VerifyOTPScreen() {
     try {
       console.log('🔐 Verify OTP: verifying code', otpCode, 'for', phone);
 
-      await verifyOTP(phone, otpCode);
+      const result = await verifyOTP(phone, otpCode);
 
       console.log('✅ Verify OTP: user authenticated successfully');
-
-      /**
-       * IMPORTANTE:
-       * Aqui o usuário JÁ EXISTE em auth.users
-       * Agora decidimos o fluxo do app
-       */
-      router.replace('/complete-profile'); 
-      // ou '/home' se quiser pular onboarding
+      console.log('✅ Verify OTP: hasProfile =', result.hasProfile);
 
     } catch (error: any) {
       console.error('❌ Verify OTP error:', error);

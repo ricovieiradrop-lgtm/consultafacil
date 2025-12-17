@@ -7,20 +7,30 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Search, ChevronLeft, Star, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { doctors } from '@/mocks/doctors';
-import { specialties } from '@/mocks/specialties';
-
-const FILTER_CHIPS = ['Todos', ...specialties.map(s => s.name)];
+import { useDoctors, useSpecialties } from '@/lib/supabase-hooks';
+import { doctors as mockDoctors } from '@/mocks/doctors';
+import { specialties as mockSpecialties } from '@/mocks/specialties';
 
 export default function SearchScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('Todos');
+
+  const { data: doctorsData, loading: doctorsLoading } = useDoctors();
+  const { data: specialtiesData } = useSpecialties();
+
+  const doctors = doctorsData?.length ? doctorsData : mockDoctors;
+  const specialties = specialtiesData?.length ? specialtiesData : mockSpecialties;
+
+  const filterChips = useMemo(() => {
+    return ['Todos', ...specialties.map(s => s.name)];
+  }, [specialties]);
 
   const filteredDoctors = useMemo(() => {
     let result = doctors;
@@ -34,12 +44,35 @@ export default function SearchScreen() {
       result = result.filter(doctor =>
         doctor.name.toLowerCase().includes(query) ||
         doctor.specialty.toLowerCase().includes(query) ||
-        doctor.city.toLowerCase().includes(query)
+        doctor.city?.toLowerCase().includes(query)
       );
     }
     
     return result;
-  }, [searchQuery, selectedFilter]);
+  }, [searchQuery, selectedFilter, doctors]);
+
+  const handleDoctorPress = (doctorId: string) => {
+    router.push(`/doctor/${doctorId}`);
+  };
+
+  const handleBookDoctor = (doctor: typeof doctors[0]) => {
+    const serviceId = doctor.services?.[0]?.id;
+    const price = doctor.services?.[0]?.price || 200;
+
+    if (!serviceId) {
+      router.push(`/doctor/${doctor.id}`);
+      return;
+    }
+
+    router.push({
+      pathname: '/booking',
+      params: {
+        doctorId: doctor.id,
+        serviceId,
+        price: price.toString(),
+      },
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -69,7 +102,7 @@ export default function SearchScreen() {
         contentContainerStyle={styles.filtersScroll}
         style={styles.filtersContainer}
       >
-        {FILTER_CHIPS.map((filter) => (
+        {filterChips.map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[
@@ -96,50 +129,65 @@ export default function SearchScreen() {
         </Text>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredDoctors.map((doctor) => (
-          <TouchableOpacity
-            key={doctor.id}
-            style={styles.doctorCard}
-            onPress={() => router.push(`/doctor/${doctor.id}` as any)}
-          >
-            <Image source={{ uri: doctor.avatar }} style={styles.doctorImage} />
-            <View style={styles.doctorInfo}>
-              <Text style={styles.doctorName}>{doctor.name}</Text>
-              <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
-              <View style={styles.locationRow}>
-                <MapPin size={14} color={Colors.light.textSecondary} />
-                <Text style={styles.locationText} numberOfLines={1}>
-                  {doctor.city}, {doctor.state}
-                </Text>
-              </View>
-              <View style={styles.doctorFooter}>
-                <View style={styles.ratingRow}>
-                  <Star size={16} color="#FFA500" fill="#FFA500" />
-                  <Text style={styles.ratingText}>{doctor.rating}</Text>
-                  <Text style={styles.reviewCount}>({doctor.reviewCount})</Text>
+      {doctorsLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Carregando médicos...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredDoctors.map((doctor) => (
+            <TouchableOpacity
+              key={doctor.id}
+              style={styles.doctorCard}
+              onPress={() => handleDoctorPress(doctor.id)}
+            >
+              <Image source={{ uri: doctor.avatar }} style={styles.doctorImage} />
+              <View style={styles.doctorInfo}>
+                <Text style={styles.doctorName}>{doctor.name}</Text>
+                <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
+                {(doctor.city || doctor.state) && (
+                  <View style={styles.locationRow}>
+                    <MapPin size={14} color={Colors.light.textSecondary} />
+                    <Text style={styles.locationText} numberOfLines={1}>
+                      {[doctor.city, doctor.state].filter(Boolean).join(', ')}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.doctorFooter}>
+                  <View style={styles.ratingRow}>
+                    <Star size={16} color="#FFA500" fill="#FFA500" />
+                    <Text style={styles.ratingText}>{doctor.rating || 0}</Text>
+                    <Text style={styles.reviewCount}>({doctor.reviewCount || 0})</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.bookBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleBookDoctor(doctor);
+                    }}
+                  >
+                    <Text style={styles.bookBtnText}>Agendar</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.bookBtn}>
-                  <Text style={styles.bookBtnText}>Agendar</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          ))}
 
-        {filteredDoctors.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Nenhum médico encontrado</Text>
-            <Text style={styles.emptyText}>
-              Tente ajustar sua busca ou filtros
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+          {filteredDoctors.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Nenhum médico encontrado</Text>
+              <Text style={styles.emptyText}>
+                Tente ajustar sua busca ou filtros
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -216,6 +264,16 @@ const styles = StyleSheet.create({
   resultsText: {
     fontSize: 14,
     fontWeight: '600' as const,
+    color: Colors.light.textSecondary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
     color: Colors.light.textSecondary,
   },
   scrollView: {
