@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   promoCard: {
     borderRadius: 24,
-    padding: 24,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -290,11 +290,9 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     position: 'absolute',
-    right: 20,
+    right: 12,
     top: 20,
-    borderRadius: 60,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 0,
   },
   section: { paddingHorizontal: 20, marginTop: 24 },
   sectionHeader: {

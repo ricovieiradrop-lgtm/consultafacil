@@ -181,7 +181,6 @@ export default function BookingScreen() {
         .update({
           appointment_date: selectedDate,
           appointment_time: selectedTime,
-          is_for_self: isForSelf,
           notes: isForSelf 
             ? null 
             : `Beneficiário: ${beneficiaryName} | Telefone: ${beneficiaryPhone}`,
@@ -202,7 +201,6 @@ export default function BookingScreen() {
         appointment_date: selectedDate,
         appointment_time: selectedTime,
         price: Number(price),
-        is_for_self: isForSelf,
         notes: isForSelf 
           ? null 
           : `Beneficiário: ${beneficiaryName} | Telefone: ${beneficiaryPhone}`,
