@@ -113,29 +113,28 @@ export default function HomeScreen() {
         {/* PROMO */}
         <View style={styles.promoContainer}>
           <LinearGradient
-            colors={['#0F766E', '#0D9488']}
+            colors={['#3D6B64', '#4A7D75']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.promoCard}
           >
             <View style={styles.promoContent}>
-              <Text style={styles.promoTitle}>Check-ups{'\n'}Regulares</Text>
-              <Text style={styles.promoSubtitle}>
-                Monitore sua saúde com{'\n'}consultas preventivas
-              </Text>
+              <Text style={styles.promoTitle}>Procurando o{"\n"}médico ideal?</Text>
               <TouchableOpacity 
                 style={styles.promoBtn} 
                 onPress={() => router.push('/search')}
                 activeOpacity={0.8}
               >
-                <Text style={styles.promoBtnText}>Agendar Agora</Text>
+                <Text style={styles.promoBtnText}>Buscar</Text>
               </TouchableOpacity>
             </View>
             
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=2070&auto=format&fit=crop' }}
-              style={styles.promoImage}
-            />
+            <View style={styles.promoImageContainer}>
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=2070&auto=format&fit=crop' }}
+                style={styles.promoImage}
+              />
+            </View>
           </LinearGradient>
         </View>
 
@@ -256,51 +255,50 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   promoCard: {
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 28,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     overflow: 'hidden',
-    height: 170,
+    minHeight: 120,
   },
   promoContent: {
     flex: 1,
     zIndex: 2,
-    paddingRight: 16,
+    paddingRight: 20,
   },
   promoTitle: {
     color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-    lineHeight: 26,
-    marginBottom: 8,
-  },
-  promoSubtitle: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 13,
+    fontSize: 17,
+    fontWeight: '700',
+    lineHeight: 24,
     marginBottom: 16,
-    lineHeight: 18,
   },
   promoBtn: {
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    backgroundColor: '#2D4A45',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
     alignSelf: 'flex-start',
   },
   promoBtnText: {
-    color: '#0F766E',
-    fontWeight: '700',
-    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  promoImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
   },
   promoImage: {
-    width: 110,
-    height: 130,
-    position: 'absolute',
-    right: 16,
-    bottom: 0,
-    borderRadius: 0,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   section: { paddingHorizontal: 20, marginTop: 24 },
   sectionHeader: {
