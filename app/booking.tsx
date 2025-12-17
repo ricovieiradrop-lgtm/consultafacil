@@ -70,7 +70,7 @@ export default function BookingScreen() {
 
   const { data: availability } = useDoctorAvailability(doctorId);
   const { data: existingAppointments } = useDoctorAppointments(doctorId, selectedDate || undefined);
-  const { data: patientAppointments } = usePatientAppointments(userId || undefined);
+  const { data: patientAppointments, refetch: refetchPatientAppointments } = usePatientAppointments(userId || undefined);
 
   useEffect(() => {
     const getUserId = async () => {
@@ -79,6 +79,16 @@ export default function BookingScreen() {
     };
     getUserId();
   }, []);
+
+  useEffect(() => {
+    if (userId && refetchPatientAppointments) {
+      console.log('🔄 Refetching patient appointments for booking screen');
+      queryClient.removeQueries({
+        predicate: (query) => query.queryKey[0] === 'patient-appointments'
+      });
+      refetchPatientAppointments();
+    }
+  }, [userId, doctorId, refetchPatientAppointments, queryClient]);
 
   useEffect(() => {
     if (!patientAppointments || !doctorId) return;

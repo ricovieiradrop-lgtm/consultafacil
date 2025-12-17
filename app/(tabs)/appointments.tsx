@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, Clock, MapPin } from 'lucide-react-native';
@@ -21,14 +22,36 @@ export default function AppointmentsScreen() {
   const { data: appointments, isLoading } = usePatientAppointments(user?.id);
 
   const handleCancelAppointment = async (appointmentId: string) => {
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'cancelled' })
-      .eq('id', appointmentId);
+    Alert.alert(
+      'Cancelar Consulta',
+      'Tem certeza que deseja cancelar esta consulta?',
+      [
+        {
+          text: 'Não',
+          style: 'cancel',
+        },
+        {
+          text: 'Sim, Cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('appointments')
+              .update({ status: 'cancelled' })
+              .eq('id', appointmentId);
 
-    if (!error) {
-      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
-    }
+            if (!error) {
+              queryClient.removeQueries({ 
+                predicate: (query) => 
+                  query.queryKey[0] === 'patient-appointments'
+              });
+              Alert.alert('Sucesso', 'Consulta cancelada com sucesso.');
+            } else {
+              Alert.alert('Erro', 'Não foi possível cancelar a consulta.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (dateStr: string) => {
