@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { X, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
 import { useDoctorAvailability, useDoctorAppointments, usePatientAppointments } from '@/lib/supabase-hooks';
@@ -48,6 +49,7 @@ function generateAvailableDates(availability: { day_of_week: number }[]): string
 export default function BookingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const queryClient = useQueryClient();
   
   const doctorId = typeof params.doctorId === 'string' ? params.doctorId : undefined;
   const serviceId = typeof params.serviceId === 'string' ? params.serviceId : undefined;
@@ -184,6 +186,10 @@ export default function BookingScreen() {
       }
     }
 
+    queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+    queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
+    
+    setLoading(false);
     setShowSuccess(true);
     setTimeout(() => router.replace('/(tabs)/appointments'), 2000);
   };
