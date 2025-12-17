@@ -242,7 +242,7 @@ export default function AppointmentsScreen() {
     );
   };
 
-  const handleDeleteAppointment = async (appointmentId: string) => {
+  const handleDeleteAppointment = (appointmentId: string) => {
     Alert.alert(
       'Excluir Consulta',
       'Deseja remover esta consulta cancelada do histórico?',
@@ -255,17 +255,39 @@ export default function AppointmentsScreen() {
           text: 'Sim, Excluir',
           style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase
-              .from('appointments')
-              .delete()
-              .eq('id', appointmentId);
+            console.log('Deleting appointment:', appointmentId);
+            
+            // Optimistic update - remove from cache immediately
+            queryClient.setQueryData(
+              ['patient-appointments', user?.id], 
+              (oldData: any[] | undefined) => {
+                if (!oldData) return [];
+                const filtered = oldData.filter((apt: any) => apt.id !== appointmentId);
+                console.log('Filtered appointments:', filtered.length);
+                return filtered;
+              }
+            );
 
-            if (!error) {
-              await queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
-              await queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
-              Alert.alert('Sucesso', 'Consulta removida com sucesso.');
-            } else {
-              console.error('Error deleting appointment:', error);
+            try {
+              const { error } = await supabase
+                .from('appointments')
+                .delete()
+                .eq('id', appointmentId);
+
+              if (error) {
+                console.error('Error deleting appointment:', error);
+                // Revert optimistic update on error
+                await queryClient.refetchQueries({ queryKey: ['patient-appointments', user?.id] });
+                Alert.alert('Erro', 'Não foi possível remover a consulta.');
+              } else {
+                console.log('Appointment deleted successfully');
+                // Refetch to ensure consistency
+                queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
+                queryClient.invalidateQueries({ queryKey: ['doctor-appointments'] });
+              }
+            } catch (err) {
+              console.error('Exception deleting appointment:', err);
+              await queryClient.refetchQueries({ queryKey: ['patient-appointments', user?.id] });
               Alert.alert('Erro', 'Não foi possível remover a consulta.');
             }
           },
