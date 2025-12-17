@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Heart } from 'lucide-react-native';
+import { Heart, Phone, Mail } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function WelcomeScreen() {
@@ -53,7 +53,21 @@ export default function WelcomeScreen() {
               onPress={() => router.push('/phone-login')}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>Começar</Text>
+              <View style={styles.buttonContent}>
+                <Phone size={20} color="#2D9A8C" />
+                <Text style={styles.buttonText}>Continuar com telefone</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.buttonSecondary}
+              onPress={() => router.push('/email-login')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.buttonContent}>
+                <Mail size={20} color="#FFFFFF" />
+                <Text style={styles.buttonSecondaryText}>Continuar com e-mail</Text>
+              </View>
             </TouchableOpacity>
             
             <Text style={styles.terms}>
@@ -127,7 +141,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   buttonContainer: {
-    gap: 16,
+    gap: 12,
   },
   button: {
     backgroundColor: '#FFFFFF',
@@ -140,10 +154,28 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  buttonSecondary: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   buttonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700' as const,
     color: '#2D9A8C',
+  },
+  buttonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   terms: {
     fontSize: 13,
