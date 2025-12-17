@@ -22,6 +22,7 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === 'welcome' || 
                         segments[0] === 'phone-login' || 
+                        segments[0] === 'email-login' || 
                         segments[0] === 'verify-otp' || 
                         segments[0] === 'complete-profile';
 
@@ -69,6 +70,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerBackTitle: "Voltar" }}>
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="phone-login" options={{ headerShown: false }} />
+      <Stack.Screen name="email-login" options={{ headerShown: false }} />
       <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
       <Stack.Screen name="complete-profile" options={{ headerShown: false }} />
       
